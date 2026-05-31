@@ -1,0 +1,38 @@
+{
+  "name": "kairos-tx",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "npx ts-node src/index.ts",
+    "inject": "npx ts-node src/index.ts inject",
+    "test:store": "npx ts-node src/store/lifecycle.ts",
+    "test:agent": "npx ts-node src/agent/failureReasoning.ts",
+    "test:tips": "npx ts-node src/bundle/tipOracle.ts",
+    "test:leader": "npx ts-node src/stream/leaderMonitor.ts",
+    "test:stream": "npx ts-node src/stream/yellowstone.ts",
+    "test:builder": "npx ts-node src/bundle/builder.ts",
+    "test:sender": "npx ts-node src/bundle/sender.ts",
+    "reset": "npx ts-node scripts/resetDb.ts",
+    "inject:lowtip": "npx ts-node scripts/injectLowTip.ts",
+    "test:all": "npx ts-node src/test.ts",
+    "generate-wallet": "npx ts-node scripts/generateWallet.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@solana/web3.js": "^1.98.4",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.9.1",
+    "better-sqlite3": "^12.10.0",
+    "chalk": "^5.6.2",
+    "dotenv": "^17.4.2",
+    "groq-sdk": "^1.2.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "jito-ts": "^4.2.1"
+  }
+}
