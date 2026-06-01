@@ -16,6 +16,7 @@
     "reset": "npx ts-node scripts/resetDb.ts",
     "inject:lowtip": "npx ts-node scripts/injectLowTip.ts",
     "test:all": "npx ts-node src/test.ts",
+    "download-protos": "npx ts-node scripts/downloadProtos.ts",
     "generate-wallet": "npx ts-node scripts/generateWallet.ts"
   },
   "keywords": [],
@@ -33,6 +34,9 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1",
+    "@triton-one/yellowstone-grpc": "^5.0.8",
     "jito-ts": "^4.2.1"
   }
 }

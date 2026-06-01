@@ -69,10 +69,9 @@ export class SlotStream extends EventEmitter {
     if (this.isMock) {
       this.startMockStream();
     } else {
-      this.startRealStream();
+      await this.startRealStream();
     }
 
-    this.emit("connected", { slot: this.currentSlot, mode: this.isMock ? "mock" : "real" });
   }
 
   // ============================================================
@@ -134,16 +133,167 @@ export class SlotStream extends EventEmitter {
   // REAL STREAM — Yellowstone gRPC (activated when SolInfra arrives)
   // ============================================================
 
-  private startRealStream(): void {
-    // This will be implemented when SolInfra provides the endpoint
-    // The interface (EventEmitter events) stays identical
-    console.log("[STREAM] Real Yellowstone gRPC stream — coming when SolInfra activates");
-    console.log("[STREAM] Endpoint:", process.env.YELLOWSTONE_ENDPOINT);
+  private async startRealStream(): Promise<void> {
+    const endpoint = process.env.YELLOWSTONE_ENDPOINT!;
+    const token = process.env.YELLOWSTONE_TOKEN!;
 
-    // For now fall back to mock even if endpoint is set
-    // We will replace this block with real gRPC code
-    this.isMock = true;
-    this.startMockStream();
+    console.log(`[STREAM] Connecting via @grpc/grpc-js to ${endpoint}`);
+
+    try {
+      const grpc = await import("@grpc/grpc-js");
+      const protoLoader = await import("@grpc/proto-loader");
+      const path = await import("path");
+      const fs = await import("fs");
+
+      // Download and cache the Yellowstone proto file
+      const protoPath = path.join(process.cwd(), "yellowstone.proto");
+
+      if (!fs.existsSync(protoPath)) {
+        console.log("[STREAM] Downloading Yellowstone proto definition...");
+        const protoContent = await fetch(
+          "https://raw.githubusercontent.com/rpcpool/yellowstone-grpc/master/yellowstone-grpc-proto/proto/geyser.proto"
+        ).then(r => r.text());
+        fs.writeFileSync(protoPath, protoContent);
+        console.log("[STREAM] Proto file saved");
+      }
+
+      const packageDef = protoLoader.loadSync(protoPath, {
+        keepCase: true,
+        longs: String,
+        enums: String,
+        defaults: true,
+        oneofs: true,
+      });
+
+      const proto = grpc.loadPackageDefinition(packageDef) as any;
+
+      // Create SSL credentials with token metadata
+      const sslCreds = grpc.credentials.createSsl();
+      const metaCallback = (
+        _params: any,
+        callback: (err: null, metadata: any) => void
+      ) => {
+        const meta = new grpc.Metadata();
+        meta.add("x-token", token);
+        callback(null, meta);
+      };
+      const callCreds = grpc.credentials.createFromMetadataGenerator(metaCallback);
+      const combinedCreds = grpc.credentials.combineChannelCredentials(
+        sslCreds,
+        callCreds
+      );
+
+      // Connect to the Geyser service
+      const GeyserService = proto.geyser?.Geyser;
+      if (!GeyserService) {
+        throw new Error("Geyser service not found in proto. Proto may not have loaded correctly.");
+      }
+
+      const client = new GeyserService(endpoint, combinedCreds);
+
+      // Open the Subscribe stream
+      const stream = client.Subscribe();
+
+      // Send subscription — slots use named filter map
+      stream.write({
+        slots: {
+          "kairos-slots": {}   // named filter key required by Yellowstone proto
+        },
+        accounts: {},
+        transactions: {},
+        blocks: {},
+        blocks_meta: {},
+        entry: {},
+        commitment: 1,
+        accounts_data_slice: [],
+        ping: undefined,
+      });
+
+      console.log("[STREAM] Subscription sent — waiting for slot events...");
+
+      let retryDelay = 1000;
+      const maxDelay = 30000;
+
+      stream.on("data", (data: any) => {
+        if (!this.running) return;
+
+        if (data.slot) {
+          const slotNum = parseInt(data.slot.slot);
+          if (isNaN(slotNum)) return;
+
+          // Map status string to our type
+          const statusStr = (data.slot.status || "").toLowerCase();
+          let stage: "processed" | "confirmed" | "finalized" = "processed";
+
+          if (statusStr.includes("processed") || statusStr === "0" || statusStr === "1") {
+            stage = "processed";
+          } else if (statusStr.includes("confirmed") || statusStr === "2") {
+            stage = "confirmed";
+          } else if (statusStr.includes("finalized") || statusStr === "3") {
+            stage = "finalized";
+          }
+
+          if (stage === "processed") {
+            this.currentSlot = slotNum;
+          }
+
+          const event: SlotEvent = {
+            slot: slotNum,
+            status: stage,
+            timestamp: new Date().toISOString(),
+            parent: data.slot.parent ? parseInt(data.slot.parent) : undefined,
+          };
+
+          this.emit("slot", event);
+
+          if (stage === "confirmed" || stage === "finalized") {
+            this.checkWatchedSignatures(slotNum, stage);
+          }
+        }
+
+        // Ping/pong keepalive
+        if (data.ping) {
+          stream.write({ pong: { id: data.ping.id } });
+        }
+      });
+
+      stream.on("error", async (err: any) => {
+        if (!this.running) return;
+        console.error(`[STREAM] gRPC error: ${err.message}`);
+        this.emit("disconnected");
+        console.log(`[STREAM] Reconnecting in ${retryDelay / 1000}s...`);
+        await new Promise(r => setTimeout(r, retryDelay));
+        retryDelay = Math.min(retryDelay * 2, maxDelay);
+        this.startRealStream();
+      });
+
+      stream.on("end", async () => {
+        if (!this.running) return;
+        console.log("[STREAM] Stream ended — reconnecting...");
+        this.emit("disconnected");
+        await new Promise(r => setTimeout(r, retryDelay));
+        retryDelay = Math.min(retryDelay * 2, maxDelay);
+        this.startRealStream();
+      });
+
+      // Emit connected immediately after subscription sent
+      console.log("[STREAM] Subscription sent — waiting for slot events...");
+      this.emit("connected", { slot: this.currentSlot, mode: "real" });
+
+      stream.on("status", (status: any) => {
+        if (status.code === 0) {
+          retryDelay = 1000;
+        } else {
+          console.log(`[STREAM] gRPC status code: ${status.code} — ${status.details}`);
+        }
+      });
+
+    } catch (err: any) {
+      console.error("[STREAM] Real stream error:", err.message);
+      console.log("[STREAM] Falling back to mock mode");
+      this.isMock = true;
+      this.startMockStream();
+    }
   }
 
   // ============================================================

@@ -91,7 +91,7 @@ async function main() {
   });
 
   stream.on("slot", (event: SlotEvent) => {
-    if (event.status === "processed") {
+    if (event.slot > currentSlot) {
       currentSlot = event.slot;
     }
   });
@@ -170,6 +170,10 @@ async function submitBundle(
 ): Promise<void> {
 
   // ── Step 1: Get live context ───────────────────────────────
+  // Refresh current slot from RPC (stream may lag on devnet)
+  const rpcSlot = await leaderMonitor.getCurrentSlot();
+  if (rpcSlot > currentSlot) currentSlot = rpcSlot;
+
   const [tips, leaderAnalysis] = await Promise.all([
     fetchTipPercentiles(),
     leaderMonitor.analyze(50),
@@ -235,22 +239,26 @@ async function submitBundle(
 
   // ── Step 7: Handle result ──────────────────────────────────
   if (result.status === "landed") {
-    const landedSlot = currentSlot;
+    // Use actual confirmed slot from RPC result, fall back to current stream slot
+    const confirmedSlot = result.slotsElapsed
+      ? bundle.builtAtSlot + result.slotsElapsed
+      : currentSlot;
 
-    // Update lifecycle store
     updateStage({
       bundle_id: submissionId,
       stage: "confirmed",
-      slot: landedSlot,
+      slot: confirmedSlot,
       timestamp: result.landedAt ?? new Date().toISOString(),
     });
 
-    // Simulate finalization (32 slots later in mock mode)
+    // Real Yellowstone stream fires finalized events automatically
+    // This setTimeout is a safety net for devnet where stream events may be sparse
+    const finalizedSlotEstimate = confirmedSlot + 32;
     setTimeout(() => {
       updateStage({
         bundle_id: submissionId,
         stage: "finalized",
-        slot: landedSlot + 32,
+        slot: finalizedSlotEstimate,
         timestamp: new Date().toISOString(),
       });
     }, 13_000);
