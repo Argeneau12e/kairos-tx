@@ -1,6 +1,7 @@
 import { Connection, Keypair } from "@solana/web3.js";
 import * as dotenv from "dotenv";
 import { BuiltBundle } from "./builder";
+import bs58 from "bs58";
 dotenv.config();
 
 // ============================================================
@@ -32,32 +33,7 @@ const JITO_ENDPOINTS = {
   ],
 };
 
-// ============================================================
-// BASE58 ENCODER
-// Jito API requires base58-encoded transactions
-// ============================================================
 
-const BASE58_ALPHABET =
-  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-
-export function bs58Encode(buffer: Buffer): string {
-  if (buffer.length === 0) return "";
-  
-  let num = BigInt("0x" + buffer.toString("hex"));
-  const chars: string[] = [];
-
-  while (num > 0n) {
-    chars.unshift(BASE58_ALPHABET[Number(num % 58n)]);
-    num = num / 58n;
-  }
-
-  for (const byte of buffer) {
-    if (byte !== 0) break;
-    chars.unshift("1");
-  }
-
-  return chars.join("");
-}
 
 // ============================================================
 // CHECK IF JITO ENDPOINT IS REACHABLE
@@ -114,7 +90,7 @@ export async function sendBundle(
 
   try {
     const txBase58 = bundle.transactions.map(tx =>
-      bs58Encode(Buffer.from(tx.serialized, "base64"))
+      bs58.encode(Buffer.from(tx.serialized, "base64"))
     );
 
     const response = await fetch(`${endpoint}/api/v1/bundles`, {
@@ -182,20 +158,39 @@ async function sendViaRpc(
   const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
   const connection = new Connection(rpcUrl, "confirmed");
 
-  console.log(`[SENDER] RPC fallback — sending first transaction directly`);
+  console.log(`[SENDER] RPC fallback — sending both transactions`);
 
   try {
-    // Send the first transaction (the payload, not the tip) via RPC
-    const txBuffer = Buffer.from(bundle.transactions[0].serialized, "base64");
+    // Send BOTH transactions — payload first, then tip
+    const results: string[] = [];
 
-    const signature = await connection.sendRawTransaction(txBuffer, {
-      skipPreflight: false,
-      preflightCommitment: "processed",
-    });
+    for (const tx of bundle.transactions) {
+      const txBuffer = Buffer.from(tx.serialized, "base64");
+      try {
+        const signature = await connection.sendRawTransaction(txBuffer, {
+          skipPreflight: false,
+          preflightCommitment: "processed",
+        });
+        results.push(signature);
+        console.log(`[SENDER] ✅ Tx accepted: ${signature.slice(0, 16)}...`);
+      } catch (txErr: any) {
+        // Tip tx to self on devnet may fail — that's fine
+        console.log(`[SENDER] Tx ${results.length + 1} note: ${txErr.message.slice(0, 60)}`);
+      }
+    }
 
-    console.log(`[SENDER] ✅ RPC submission accepted: ${signature}`);
+    if (results.length === 0) {
+      return {
+        bundleId: "send_failed",
+        status: "failed",
+        submittedAt,
+        failureReason: "All transactions failed to send",
+        method: "rpc_fallback",
+      };
+    }
 
-    // Wait for confirmation
+    // Confirm the first (payload) transaction
+    const signature = results[0];
     const confirmation = await connection.confirmTransaction({
       signature,
       blockhash: bundle.blockhash,
@@ -213,10 +208,10 @@ async function sendViaRpc(
     }
 
     const slot = await connection.getSlot("confirmed");
-    console.log(`[SENDER] ✅ Confirmed via RPC at slot ${slot}`);
+    console.log(`[SENDER] ✅ Confirmed at slot ${slot}`);
 
     return {
-      bundleId: signature,  // use tx signature as bundle ID for RPC fallback
+      bundleId: signature,
       status: "landed",
       submittedAt,
       landedAt: new Date().toISOString(),
@@ -243,8 +238,8 @@ async function sendViaRpc(
 export async function pollBundleStatus(
   bundleId: string,
   isDevnet: boolean,
-  maxAttempts = 20,
-  intervalMs = 2000
+  maxAttempts = 45,
+  intervalMs = 3000
 ): Promise<{
   status: "landed" | "failed" | "timeout";
   slot?: number;
@@ -277,11 +272,17 @@ export async function pollBundleStatus(
 
       const value = data.result?.value;
       if (!value || value.length === 0) {
-        console.log(`[SENDER] Poll ${attempt}/${maxAttempts}: pending...`);
+        if (attempt % 5 === 0) {
+          console.log(`[SENDER] Poll ${attempt}/${maxAttempts}: pending (no status yet)...`);
+        }
         continue;
       }
 
       const bundleStatus = value[0];
+      // Log full status on first non-empty response
+      if (attempt <= 3 || bundleStatus?.confirmation_status) {
+        console.log(`[SENDER] Poll ${attempt}/${maxAttempts}: raw =`, JSON.stringify(bundleStatus));
+      }
       const status = bundleStatus?.confirmation_status ?? bundleStatus?.status;
       console.log(`[SENDER] Poll ${attempt}/${maxAttempts}: ${status}`);
 

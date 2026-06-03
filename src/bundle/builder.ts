@@ -13,12 +13,16 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 // ============================================================
-// JITO TIP ACCOUNTS
-// These are the official Jito tip accounts on mainnet
-// On devnet we use a simulated version
+// TIP ACCOUNT MANAGEMENT
+// Fetches live tip accounts from Jito API — never hardcoded
 // ============================================================
 
-const JITO_TIP_ACCOUNTS_MAINNET = [
+let cachedTipAccounts: string[] = [];
+let tipAccountCacheTime = 0;
+const TIP_ACCOUNT_TTL = 60_000; // refresh every 60 seconds
+
+// Fallback list in case API is unreachable
+const JITO_TIP_ACCOUNTS_FALLBACK = [
   "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
   "HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe",
   "Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY",
@@ -29,9 +33,51 @@ const JITO_TIP_ACCOUNTS_MAINNET = [
   "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
 ];
 
-// On devnet — we send the "tip" to ourselves (no real Jito)
-// This means the transaction still goes through but with no real MEV auction
-const DEVNET_TIP_ACCOUNT = "BiMZhxnXezW7Tef2WBbPd2qJmfPdNUkmmVouDM6YmFao"; // your wallet
+export async function fetchJitoTipAccounts(isDevnet: boolean): Promise<string[]> {
+  if (isDevnet) return []; // Not used on devnet
+
+  const now = Date.now();
+  if (cachedTipAccounts.length > 0 && now - tipAccountCacheTime < TIP_ACCOUNT_TTL) {
+    return cachedTipAccounts;
+  }
+
+  try {
+    const response = await fetch("https://mainnet.block-engine.jito.wtf/api/v1/bundles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "getTipAccounts",
+        params: [],
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+
+    const data = await response.json() as any;
+    if (data.result && Array.isArray(data.result) && data.result.length > 0) {
+      cachedTipAccounts = data.result;
+      tipAccountCacheTime = now;
+      console.log(`[BUILDER] Fetched ${cachedTipAccounts.length} live Jito tip accounts`);
+      return cachedTipAccounts;
+    }
+  } catch (err: any) {
+    console.warn(`[BUILDER] Could not fetch tip accounts: ${err.message} — using fallback`);
+  }
+
+  return JITO_TIP_ACCOUNTS_FALLBACK;
+}
+
+async function pickTipAccount(isDevnet: boolean, submitterPubkey: string): Promise<PublicKey> {
+  if (isDevnet) {
+    return new PublicKey(submitterPubkey);
+  }
+  const accounts = await fetchJitoTipAccounts(false);
+  const picked = accounts[Math.floor(Math.random() * accounts.length)];
+  console.log(`[BUILDER] Tip account: ${picked.slice(0, 8)}...`);
+  return new PublicKey(picked);
+}
+
 
 // ============================================================
 // LOAD WALLET
@@ -71,19 +117,6 @@ export interface BuiltBundle {
   expiresAtSlot: number;
 }
 
-// ============================================================
-// PICK A RANDOM TIP ACCOUNT
-// Jito rotates between accounts — we pick one randomly
-// ============================================================
-
-function pickTipAccount(isDevnet: boolean): PublicKey {
-  if (isDevnet) {
-    return new PublicKey(DEVNET_TIP_ACCOUNT);
-  }
-  const accounts = JITO_TIP_ACCOUNTS_MAINNET;
-  const picked = accounts[Math.floor(Math.random() * accounts.length)];
-  return new PublicKey(picked);
-}
 
 // ============================================================
 // BUILD A BUNDLE
@@ -155,7 +188,7 @@ export async function buildBundle(
   // ── Transaction 2: Jito tip transaction ────────────────────
   // This pays the tip to Jito's tip account
   // MUST be in the same bundle as Tx1 — atomic execution
-  const tipAccount = pickTipAccount(isDevnet);
+const tipAccount = await pickTipAccount(isDevnet, wallet.publicKey.toBase58());
 
   const tx2 = new Transaction();
   tx2.recentBlockhash = blockhash;

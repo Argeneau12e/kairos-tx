@@ -8,8 +8,8 @@ dotenv.config();
 
 export interface TipContext {
   currentSlot: number;
-  nextJitoSlotIn: number;      // how many slots until next Jito leader
-  jitoCoveragePct: number;     // % of next 50 slots that are Jito leaders
+  nextJitoSlotIn: number;
+  jitoCoveragePct: number;
   tips: {
     p25: number;
     p50: number;
@@ -23,7 +23,9 @@ export interface TipContext {
     tip: number;
     landed: boolean;
   }>;
-  pcDeltaMs: number;           // processed→confirmed delta from last bundle
+  pcDeltaMs: number;
+  healthScore?: number;
+  healthContext?: string;
 }
 
 export interface TipDecision {
@@ -152,6 +154,7 @@ export async function decideTip(ctx: TipContext): Promise<TipDecision> {
 Your job is to decide the optimal tip amount in lamports for the next Jito bundle.
 
 CURRENT NETWORK STATE:
+${ctx.healthContext ?? `NETWORK HEALTH SCORE: unknown`}
 - Current slot: ${ctx.currentSlot}
 - Next Jito leader: in ${ctx.nextJitoSlotIn} slots
 - Jito validator coverage (next 50 slots): ${ctx.jitoCoveragePct.toFixed(1)}%

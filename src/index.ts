@@ -17,6 +17,14 @@ import {
   exportToJSON,
   getStats,
 } from "./store/lifecycle";
+import {
+  recordPcDelta,
+  recordTipP75,
+  recordSlot,
+  computeHealthScore,
+  getHealthContext,
+  getSessionSummary,
+} from "./stream/networkHealth";
 
 // ============================================================
 // CONFIG
@@ -24,10 +32,10 @@ import {
 
 const CONFIG = {
   rpcUrl: process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com",
-  isDevnet: (process.env.SOLANA_RPC_URL ?? "devnet").includes("devnet"),
-  totalBundles: 10,          // how many bundles to submit in this run
-  delayBetweenBundles: 8000, // 8 seconds between bundles
-  maxRetries: 2,             // max AI-driven retries per bundle
+  isDevnet: (process.env.NETWORK ?? "devnet") === "devnet",
+  totalBundles: 10,
+  delayBetweenBundles: 8000,
+  maxRetries: 2,
 };
 
 // ============================================================
@@ -69,7 +77,11 @@ async function main() {
     process.exit(1);
   }
 
-  const connection = new Connection(CONFIG.rpcUrl, "confirmed");
+  const connection = new Connection(CONFIG.rpcUrl, {
+    commitment: "confirmed",
+    confirmTransactionInitialTimeout: 60000,
+    disableRetryOnRateLimit: false,
+  });
 
   // Check balance
   const balance = await connection.getBalance(wallet.publicKey);
@@ -93,6 +105,7 @@ async function main() {
   stream.on("slot", (event: SlotEvent) => {
     if (event.slot > currentSlot) {
       currentSlot = event.slot;
+      recordSlot(event.slot);
     }
   });
 
@@ -143,10 +156,17 @@ async function main() {
   console.log("╚════════════════════════════════════════╝\n");
 
   const stats = getStats();
+  const summary = getSessionSummary();
+
   console.log(`Total bundles:  ${stats.total}`);
   console.log(`Finalized:      ${stats.finalized}`);
   console.log(`Failed:         ${stats.failed}`);
   console.log(`Success rate:   ${stats.success_rate}`);
+  console.log(`\nNetwork Summary:`);
+  console.log(`  Avg p→c delta: ${summary.avgPcDelta.toFixed(0)}ms`);
+  console.log(`  p→c range:     ${summary.minPcDelta}ms – ${summary.maxPcDelta}ms`);
+  console.log(`  Tip P75 range: ${summary.minTipP75} – ${summary.maxTipP75} lam`);
+  console.log(`  Tip volatility: ${summary.tipVolatilityRatio.toFixed(1)}x`);
 
   // Export lifecycle log
   exportToJSON();
@@ -170,14 +190,34 @@ async function submitBundle(
 ): Promise<void> {
 
   // ── Step 1: Get live context ───────────────────────────────
-  // Refresh current slot from RPC (stream may lag on devnet)
-  const rpcSlot = await leaderMonitor.getCurrentSlot();
-  if (rpcSlot > currentSlot) currentSlot = rpcSlot;
+  // Refresh current slot — retry on network timeout
+  try {
+    const rpcSlot = await leaderMonitor.getCurrentSlot();
+    if (rpcSlot > currentSlot) currentSlot = rpcSlot;
+  } catch (err: any) {
+    console.warn(`[MAIN] RPC slot fetch failed: ${err.message} — using stream slot ${currentSlot}`);
+    // Stream slot is still valid, continue with it
+  }
 
-  const [tips, leaderAnalysis] = await Promise.all([
-    fetchTipPercentiles(),
-    leaderMonitor.analyze(50),
-  ]);
+  let tips, leaderAnalysis;
+  try {
+    [tips, leaderAnalysis] = await Promise.all([
+      fetchTipPercentiles(),
+      leaderMonitor.analyze(50),
+    ]);
+  } catch (err: any) {
+    console.warn(`[MAIN] Context fetch failed: ${err.message} — retrying once...`);
+    await sleep(3000);
+    [tips, leaderAnalysis] = await Promise.all([
+      fetchTipPercentiles(),
+      leaderMonitor.analyze(50),
+    ]);
+  }
+
+  // Record tip data and compute health score
+  recordTipP75(tips.p75);
+  const healthSnapshot = computeHealthScore(leaderAnalysis.jitoCoveragePct);
+  console.log(`[HEALTH] Score: ${healthSnapshot.score}/100 (${healthSnapshot.grade}) | p→c: ${healthSnapshot.pcDeltaMs}ms | tips: ${healthSnapshot.tipTrend}`);
 
   const tipTrend = detectTipTrend(tips);
 
@@ -193,8 +233,10 @@ async function submitBundle(
       p95: tips.p95,
     },
     tipTrend,
-    recentBundles: recentBundles.slice(-3), // last 3
+    recentBundles: recentBundles.slice(-3),
     pcDeltaMs: lastPcDeltaMs,
+    healthScore: healthSnapshot.score,
+    healthContext: getHealthContext(healthSnapshot),
   };
 
   console.log(`\n[AI] Deciding tip...`);
@@ -263,10 +305,11 @@ async function submitBundle(
       });
     }, 13_000);
 
-    // Update p→c delta for next AI decision
+    // Update p→c delta and feed into health score
     if (result.submittedAt && result.landedAt) {
       lastPcDeltaMs = new Date(result.landedAt).getTime() -
                       new Date(result.submittedAt).getTime();
+      recordPcDelta(lastPcDeltaMs);
     }
 
     // Track for AI context
