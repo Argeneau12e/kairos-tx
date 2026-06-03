@@ -10,6 +10,7 @@ import { fetchTipPercentiles, detectTipTrend } from "./bundle/tipOracle";
 import { buildBundle, loadWallet, isBlockhashExpired } from "./bundle/builder";
 import { sendAndTrack, SendResult } from "./bundle/sender";
 import { decideTip, analyzeFailure, TipContext, FailureContext } from "./agent/failureReasoning";
+import { generateNetworkReport, saveReport, SessionData } from "./agent/networkReport";
 import {
   recordSubmission,
   updateStage,
@@ -51,6 +52,13 @@ let recentBundles: Array<{
   landed: boolean;
 }> = [];
 let lastPcDeltaMs = 1500; // start with healthy assumption
+let sessionStartSlot = 0;
+let aiDecisionLog: Array<{
+  bundle: number;
+  tip: number;
+  assessment: string;
+  reasoning: string;
+}> = [];
 
 // ============================================================
 // MAIN ORCHESTRATOR
@@ -99,6 +107,7 @@ async function main() {
   // Wire up stream events
   stream.on("connected", (info: any) => {
     currentSlot = info.slot;
+    sessionStartSlot = info.slot;
     console.log(`[STREAM] Connected at slot ${currentSlot}\n`);
   });
 
@@ -170,7 +179,32 @@ async function main() {
 
   // Export lifecycle log
   exportToJSON();
+
+  // Generate AI network intelligence report
+  console.log("\n[REPORT] Generating network intelligence report...");
+  const sessionData: SessionData = {
+    startSlot: sessionStartSlot,
+    endSlot: currentSlot,
+    totalBundles: stats.total,
+    landedBundles: stats.finalized,
+    failedBundles: stats.failed,
+    avgPcDelta: summary.avgPcDelta,
+    minPcDelta: summary.minPcDelta,
+    maxPcDelta: summary.maxPcDelta,
+    minTipP75: summary.minTipP75,
+    maxTipP75: summary.maxTipP75,
+    tipVolatilityRatio: summary.tipVolatilityRatio,
+    networkGrades: aiDecisionLog.map(d => d.assessment),
+    aiDecisions: aiDecisionLog,
+  };
+
+  const report = await generateNetworkReport(sessionData);
+  saveReport(report, sessionStartSlot);
+
+  console.log("\n--- Network Intelligence Report ---");
+  console.log(report);
   console.log("\n✅ lifecycle_export.json written to logs/");
+  console.log("✅ network_report.txt written to logs/");
   console.log("✅ KAIROS run complete");
 
   process.exit(0);
@@ -242,6 +276,12 @@ async function submitBundle(
   console.log(`\n[AI] Deciding tip...`);
   const tipDecision = await decideTip(tipCtx);
   console.log(`[AI] → ${tipDecision.tip_lamports} lam | ${tipDecision.network_assessment} | ${tipDecision.confidence} confidence`);
+  aiDecisionLog.push({
+      bundle: bundleSequence,
+      tip: tipDecision.tip_lamports,
+      assessment: tipDecision.network_assessment,
+      reasoning: tipDecision.reasoning,
+    });
   console.log(`[AI] → "${tipDecision.reasoning.slice(0, 120)}..."`);
 
   // ── Step 3: Check submit timing ────────────────────────────
