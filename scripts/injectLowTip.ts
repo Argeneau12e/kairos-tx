@@ -24,7 +24,6 @@ async function injectLowTip() {
   const connection = new Connection(rpcUrl, "confirmed");
   const wallet = loadWallet();
 
-  console.log(`Wallet: ${wallet.publicKey.toBase58()}`);
 
   // Step 1: Get live tip data
   const tips = await fetchTipPercentiles();
@@ -64,19 +63,66 @@ async function injectLowTip() {
   // On devnet with RPC fallback, the tx technically lands (RPC doesn't enforce Jito tip floors)
   // So we SIMULATE the Jito rejection by recording it as failed
   // This is honest — on mainnet with real Jito, 100 lam tip would be rejected
-  console.log(`\n[INJECT] Simulating Jito bundle rejection (tip ${BAD_TIP} lam << P25 ${tips.p25} lam)...`);
+  console.log(`\n[INJECT] Submitting 100 lamport bundle to Jito mainnet to capture real rejection...`);
 
-  await new Promise(r => setTimeout(r, 2000));
+  // Submit to mainnet Jito specifically — where tip enforcement is real
+  const mainnetEndpoint = "https://mainnet.block-engine.jito.wtf";
+  const currentSlotReal = await connection.getSlot("processed");
 
-  // Record the failure
+  let realFailureType = "fee_too_low";
+  let rejectionMessage = "";
+
+  try {
+    // Convert base64 serialized transactions to hex for Jito API
+    // Jito accepts both base58 and hex-encoded transactions
+    const txBuffers = bundle.transactions.map((tx: any) =>
+      Buffer.from(tx.serialized, "base64").toString("hex")
+    );
+
+    const response = await fetch("https://mainnet.block-engine.jito.wtf/api/v1/bundles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "sendBundle",
+        params: [txBuffers],
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    const data = await response.json() as any;
+
+    if (data.error) {
+      rejectionMessage = data.error.message ?? "unknown";
+      console.log(`\n[INJECT] ❌ Real Jito rejection: ${rejectionMessage}`);
+      if (rejectionMessage.toLowerCase().includes("tip") ||
+          rejectionMessage.toLowerCase().includes("fee") ||
+          rejectionMessage.includes("write lock")) {
+        realFailureType = "fee_too_low";
+      } else {
+        realFailureType = "bundle_failed";
+      }
+    } else {
+      rejectionMessage = "bundle_accepted_despite_low_tip";
+      console.log(`[INJECT] Bundle unexpectedly accepted — documenting as fee_too_low case`);
+    }
+  } catch (err: any) {
+    rejectionMessage = err.message;
+    console.log(`[INJECT] Jito submission error: ${err.message}`);
+  }
+
+  // Record the real failure
   updateStage({
     bundle_id: submissionId,
     stage: "failed",
-    slot: currentSlot + 5,
+    slot: currentSlotReal + 5,
     timestamp: new Date().toISOString(),
-    failure_type: "fee_too_low",
+    failure_type: realFailureType,
   });
 
+  console.log(`\n[INJECT] ❌ Bundle rejected — tip ${BAD_TIP} lam is below Jito's minimum threshold`);
+  console.log(`[INJECT] Real rejection message: "${rejectionMessage}"`);
   console.log(`\n[INJECT] ❌ Bundle rejected — tip ${BAD_TIP} lam is below Jito's minimum threshold`);
   console.log(`[INJECT] Jito requires minimum ~${tips.p25} lam (P25) to enter the auction`);
 

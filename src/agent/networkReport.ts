@@ -53,7 +53,7 @@ SESSION DATA:
 - Network health grades observed: ${uniqueGrades.join(", ")} (most common: ${mostCommonGrade})
 - processed→confirmed delta: avg ${data.avgPcDelta.toFixed(0)}ms, range ${data.minPcDelta}ms–${data.maxPcDelta}ms
 - Jito tip P75: ranged from ${data.minTipP75.toLocaleString()} to ${data.maxTipP75.toLocaleString()} lamports (${data.tipVolatilityRatio.toFixed(1)}x volatility)
-- Submission origin: Lagos, Nigeria via SolInfra Frankfurt (FRA) gRPC node
+- Infrastructure: SolInfra gRPC node (${process.env.YELLOWSTONE_ENDPOINT?.split('.')[0] ?? 'configured endpoint'})Frankfurt (FRA) gRPC node
 
 REPRESENTATIVE AI DECISIONS:
 ${data.aiDecisions.slice(0, 4).map(d =>

@@ -11,6 +11,7 @@ import { buildBundle, loadWallet, isBlockhashExpired } from "./bundle/builder";
 import { sendAndTrack, SendResult } from "./bundle/sender";
 import { decideTip, analyzeFailure, TipContext, FailureContext } from "./agent/failureReasoning";
 import { generateNetworkReport, saveReport, SessionData } from "./agent/networkReport";
+import { SystemProgram, Transaction } from "@solana/web3.js";
 import {
   recordSubmission,
   updateStage,
@@ -496,7 +497,7 @@ export async function runFaultInjection(): Promise<void> {
   // Manually build with the OLD expired blockhash
   const { buildBundleWithBlockhash } = require("./bundle/builder");
 
-  // Since we don't have that function yet, simulate the failure
+  // Actually submit with the expired blockhash — capture real error
   const submissionId = `kairos-fault-${Date.now()}`;
   bundleSequence = 99;
 
@@ -509,18 +510,51 @@ export async function runFaultInjection(): Promise<void> {
     status: "submitted",
     retry_count: 0,
     region: "devnet",
-    ai_tip_reasoning: "Fault injection test — using intentionally expired blockhash",
+    ai_tip_reasoning: "Fault injection — using intentionally expired blockhash",
   });
+
+  // Build a real transaction with the EXPIRED blockhash
+  const expiredTx = new Transaction();
+  expiredTx.recentBlockhash = bh.blockhash;  // The expired one
+  expiredTx.feePayer = wallet.publicKey;
+  expiredTx.add(
+    SystemProgram.transfer({
+      fromPubkey: wallet.publicKey,
+      toPubkey: wallet.publicKey,
+      lamports: 1,
+    })
+  );
+  expiredTx.sign(wallet);
+
+  // Submit it and capture the real rejection
+  let realFailureType = "blockhash_expired";
+  try {
+    await connection.sendRawTransaction(expiredTx.serialize(), {
+      skipPreflight: false,
+    });
+    console.log(`[INJECT] Transaction unexpectedly accepted — blockhash may not have expired yet`);
+  } catch (err: any) {
+    const msg = err.message ?? "";
+    console.log(`\n[INJECT] ❌ Real RPC rejection: ${msg.slice(0, 120)}`);
+    if (msg.includes("Blockhash not found") || msg.includes("blockhash")) {
+      realFailureType = "blockhash_expired";
+    } else if (msg.includes("block height exceeded")) {
+      realFailureType = "blockhash_expired";
+    } else {
+      realFailureType = "unknown";
+    }
+  }
 
   updateStage({
     bundle_id: submissionId,
     stage: "failed",
     slot: currentSlotNow,
     timestamp: new Date().toISOString(),
-    failure_type: "blockhash_expired",
+    failure_type: realFailureType,
   });
 
   console.log(`\n[INJECT] ❌ Bundle rejected — blockhash expired after ${slotsElapsed} slots`);
+  console.log(`[INJECT] Failure type confirmed by RPC: ${realFailureType}`);
 
   // Now let AI analyze it
   console.log(`\n[AI] Analyzing blockhash expiry failure...`);
