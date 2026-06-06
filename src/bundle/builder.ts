@@ -256,6 +256,76 @@ export function isBlockhashExpired(
 }
 
 // ============================================================
+// PRE-FLIGHT SIMULATION
+// Simulate the payload transaction before spending lamports
+// Catches compute_exceeded and instruction errors early
+// ============================================================
+
+export interface SimulationResult {
+  passed: boolean;
+  errorType?: string;
+  errorMessage?: string;
+  unitsConsumed?: number;
+  logs?: string[];
+}
+
+export async function simulateBundle(
+  connection: Connection,
+  bundle: BuiltBundle
+): Promise<SimulationResult> {
+  try {
+    // Simulate the payload transaction (Tx1) only
+    // The tip transaction is a simple SOL transfer — always valid
+    const txBuffer = Buffer.from(bundle.transactions[0].serialized, "base64");
+
+    // Deserialize for simulation
+    const { Transaction } = require("@solana/web3.js");
+    const tx = Transaction.from(txBuffer);
+
+    const simulation = await connection.simulateTransaction(tx, undefined, true);
+
+    if (simulation.value.err) {
+      const errStr = JSON.stringify(simulation.value.err);
+      let errorType = "simulation_failed";
+
+      if (errStr.includes("ComputeBudget") || errStr.includes("exceeded")) {
+        errorType = "compute_exceeded";
+      } else if (errStr.includes("InsufficientFunds")) {
+        errorType = "insufficient_funds";
+      } else if (errStr.includes("InvalidAccountData")) {
+        errorType = "invalid_account";
+      }
+
+      console.log(`[PREFLIGHT] ❌ Simulation failed: ${errorType}`);
+      console.log(`[PREFLIGHT] Error: ${errStr}`);
+
+      return {
+        passed: false,
+        errorType,
+        errorMessage: errStr,
+        unitsConsumed: simulation.value.unitsConsumed ?? 0,
+        logs: simulation.value.logs ?? [],
+      };
+    }
+
+    const units = simulation.value.unitsConsumed ?? 0;
+    console.log(`[PREFLIGHT] ✅ Simulation passed — ${units.toLocaleString()} compute units`);
+
+    return {
+      passed: true,
+      unitsConsumed: units,
+      logs: simulation.value.logs ?? [],
+    };
+
+  } catch (err: any) {
+    // Simulation errors that aren't transaction errors
+    // (network issues, RPC problems) — don't block submission
+    console.warn(`[PREFLIGHT] Simulation unavailable: ${err.message} — proceeding`);
+    return { passed: true, errorMessage: err.message };
+  }
+}
+
+// ============================================================
 // TEST
 // ============================================================
 

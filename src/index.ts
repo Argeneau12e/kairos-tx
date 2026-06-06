@@ -7,11 +7,12 @@ dotenv.config();
 import { SlotStream, SlotEvent } from "./stream/yellowstone";
 import { LeaderMonitor } from "./stream/leaderMonitor";
 import { fetchTipPercentiles, detectTipTrend } from "./bundle/tipOracle";
-import { buildBundle, loadWallet, isBlockhashExpired } from "./bundle/builder";
+import { buildBundle, loadWallet, isBlockhashExpired, simulateBundle } from "./bundle/builder";
 import { sendAndTrack, SendResult } from "./bundle/sender";
 import { decideTip, analyzeFailure, TipContext, FailureContext } from "./agent/failureReasoning";
 import { generateNetworkReport, saveReport, SessionData } from "./agent/networkReport";
 import { SystemProgram, Transaction } from "@solana/web3.js";
+
 import {
   recordSubmission,
   updateStage,
@@ -350,6 +351,71 @@ async function submitBundle(
     CONFIG.isDevnet,
     memo
   );
+
+  // ── Step 4.5: Pre-flight simulation ───────────────────────
+  console.log(`[PREFLIGHT] Simulating bundle before submission...`);
+  const simResult = await simulateBundle(connection, bundle);
+
+  if (!simResult.passed && simResult.errorType !== undefined) {
+    console.log(`[PREFLIGHT] ❌ Bundle failed simulation — ${simResult.errorType}`);
+    console.log(`[PREFLIGHT] Skipping submission to save lamports`);
+
+    // Log to AI agent for analysis
+    const prefailId = `kairos-prefail-${bundleSequence}-${Date.now()}`;
+    recordSubmission({
+      bundle_id: prefailId,
+      sequence: bundleSequence,
+      submitted_at: new Date().toISOString(),
+      submitted_slot: currentSlot,
+      tip_lamports: tipDecision.tip_lamports,
+      status: "submitted",
+      retry_count: retryCount,
+      region: CONFIG.isDevnet ? "devnet" : "mainnet",
+      ai_tip_reasoning: `Pre-flight simulation failed: ${simResult.errorType}`,
+    });
+
+    updateStage({
+      bundle_id: prefailId,
+      stage: "failed",
+      slot: currentSlot,
+      timestamp: new Date().toISOString(),
+      failure_type: simResult.errorType,
+    });
+
+    // Ask AI to analyze the simulation failure
+    if (retryCount < CONFIG.maxRetries) {
+      const simFailureCtx: FailureContext = {
+        bundle_id: prefailId,
+        failure_type: simResult.errorType,
+        submitted_slot: currentSlot,
+        current_slot: currentSlot,
+        slots_elapsed: 0,
+        tip_used: tipDecision.tip_lamports,
+        tips: {
+          p25: tips.p25,
+          p50: tips.p50,
+          p75: tips.p75,
+          p95: tips.p95,
+        },
+        pcDeltaMs: lastPcDeltaMs,
+      };
+
+      const simDecision = await analyzeFailure(simFailureCtx);
+      console.log(`[AI] Pre-flight analysis: ${simDecision.root_cause}`);
+      console.log(`[AI] Action: ${simDecision.action}`);
+      recordAIRetry(prefailId, simDecision.reasoning, simDecision.new_tip_lamports);
+    }
+
+    return;
+  }
+
+  // Simulation passed — log compute units for visibility
+  if (simResult.unitsConsumed && simResult.unitsConsumed > 0) {
+    dashboardState.lastAiDecision = {
+      ...dashboardState.lastAiDecision!,
+      reasoning: `[PREFLIGHT OK: ${simResult.unitsConsumed.toLocaleString()} CU] ${dashboardState.lastAiDecision?.reasoning ?? ""}`,
+    };
+  }
 
   // ── Step 5: Record submission ──────────────────────────────
   const submissionId = `kairos-${bundleSequence}-${Date.now()}`;
