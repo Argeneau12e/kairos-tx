@@ -42,6 +42,7 @@ Most builders treat transaction submission as a single step. KAIROS treats it as
 - Groq AI agent (llama-3.3-70b-versatile) making tip and failure decisions with visible reasoning
 - Real fault injection with RPC and Jito-verified failure cases
 - AI-generated network intelligence report after every run
+- Pre-flight bundle simulation via `simulateTransaction()` — catches failures before spending lamports
 
 ---
 
@@ -381,7 +382,7 @@ Built with [SolInfra](https://solinfra.dev) Ace plan — dedicated mainnet RPC a
 
 ---
 
-<div align="center">
+<div  align="center">
 
 Built for the [Superteam Nigeria Advanced Infrastructure Challenge](https://superteam.fun/earn/listing/advanced-infrastructure-challenge-build-a-smart-transaction-stack/)
 
