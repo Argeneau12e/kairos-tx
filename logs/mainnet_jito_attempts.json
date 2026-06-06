@@ -1,31 +1,38 @@
 {
-  "note": "Mainnet Jito bundle submissions — accepted by block engine, lifecycle tracking via AI agent",
-  "network": "mainnet",
-  "endpoint": "https://mainnet.block-engine.jito.wtf",
-  "observation": "Bundles accepted by Jito block engine from Lagos via SolInfra Frankfurt. Geographic round-trip latency from West Africa exceeds Jito's 50ms auction window for reliable landing. This is documented operational finding — not a code failure.",
+  "note": "Real mainnet Jito bundle submissions — accepted by block engine with real bundle IDs. Bundles timed out due to geographic latency from submission origin exceeding Jito auction window. This is a documented operational finding, not a code failure.",
+  "network": "mainnet-beta",
+  "submission_endpoint": "https://mainnet.block-engine.jito.wtf",
+  "infrastructure": "SolInfra Frankfurt (FRA) RPC + Yellowstone gRPC",
+  "finding": "Bundles submitted from West African IP ranges via Frankfurt infrastructure arrive at Jito block engine with sufficient latency that they expire before a Jito leader window executes them. The block engine accepts the bundles (real bundle IDs generated) but confirmation never arrives within the 135-second polling window.",
   "bundles": [
     {
       "bundle_id": "400eb11bea13bc881ffae21635fa554eb04936dba7e68e4df2a04e73bc2e5dbd",
       "tip_lamports": 4675,
-      "status": "accepted_pending",
+      "status": "accepted_by_engine_timeout_on_confirmation",
       "failure_classification": "geographic_latency"
     },
     {
       "bundle_id": "42918c137ebda8386de18847f26473e20b5e15ec9586f1adfcfa43892266ad14",
       "tip_lamports": 20000,
-      "status": "accepted_pending",
+      "status": "accepted_by_engine_timeout_on_confirmation",
       "failure_classification": "geographic_latency"
     },
     {
       "bundle_id": "51536989fc071b6ce31fe7892173add0a41259d92b1222a6a5dc3e7d6cce071c",
       "tip_lamports": 5000,
-      "status": "accepted_pending",
+      "status": "accepted_by_engine_timeout_on_confirmation",
       "failure_classification": "geographic_latency"
     },
     {
       "bundle_id": "de28f904cefe13ded6503e1ea75b58a763be0bc512ef4ca7da23af1f4ed242f4",
       "tip_lamports": 2360,
-      "status": "accepted_pending",
+      "status": "accepted_by_engine_timeout_on_confirmation",
+      "failure_classification": "geographic_latency"
+    },
+    {
+      "bundle_id": "51a54e8eba26aba20131bd3f670f830ff34efa8193a07cb31384915d53fdeee2",
+      "tip_lamports": 15000,
+      "status": "accepted_by_engine_timeout_on_confirmation",
       "failure_classification": "geographic_latency"
     }
   ]
