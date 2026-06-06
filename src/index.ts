@@ -28,6 +28,13 @@ import {
   getSessionSummary,
 } from "./stream/networkHealth";
 
+import {
+  DashboardState,
+  renderDashboard,
+  startDashboard,
+  stopDashboard,
+} from "./ui/dashboard";
+
 // ============================================================
 // CONFIG
 // ============================================================
@@ -60,6 +67,27 @@ let aiDecisionLog: Array<{
   assessment: string;
   reasoning: string;
 }> = [];
+
+let dashboardState: DashboardState = {
+  currentSlot: 0,
+  streamMode: "mock",
+  streamConnected: false,
+  networkScore: 0,
+  networkGrade: "unknown",
+  pcDeltaMs: 1500,
+  tipP25: 0,
+  tipP50: 0,
+  tipP75: 0,
+  tipP95: 0,
+  tipTrend: "stable",
+  lastAiDecision: null,
+  bundles: [],
+  totalBundles: 0,
+  targetBundles: CONFIG.totalBundles,
+  finalized: 0,
+  failed: 0,
+  sessionStartSlot: 0,
+};
 
 // ============================================================
 // MAIN ORCHESTRATOR
@@ -109,6 +137,10 @@ async function main() {
   stream.on("connected", (info: any) => {
     currentSlot = info.slot;
     sessionStartSlot = info.slot;
+    dashboardState.currentSlot = info.slot;
+    dashboardState.sessionStartSlot = info.slot;
+    dashboardState.streamConnected = true;
+    dashboardState.streamMode = info.mode;
     console.log(`[STREAM] Connected at slot ${currentSlot}\n`);
   });
 
@@ -116,6 +148,8 @@ async function main() {
     if (event.slot > currentSlot) {
       currentSlot = event.slot;
       recordSlot(event.slot);
+      dashboardState.currentSlot = event.slot;
+      renderDashboard(dashboardState);
     }
   });
 
@@ -131,15 +165,16 @@ async function main() {
     }
   });
 
+  
+
   await stream.start();
 
   // Give stream a moment to sync
   await sleep(1000);
 
   // ── MAIN LOOP ──────────────────────────────────────────────
-  console.log("═══════════════════════════════════════════");
-  console.log(`  Starting ${CONFIG.totalBundles}-bundle run`);
-  console.log("═══════════════════════════════════════════\n");
+  startDashboard();
+  dashboardState.targetBundles = CONFIG.totalBundles;
 
   for (let i = 1; i <= CONFIG.totalBundles; i++) {
     bundleSequence = i;
@@ -160,6 +195,7 @@ async function main() {
 
   // ── FINAL REPORT ───────────────────────────────────────────
   stream.stop();
+  stopDashboard();
 
   console.log("\n╔════════════════════════════════════════╗");
   console.log("║           Run Complete                 ║");
@@ -253,6 +289,15 @@ async function submitBundle(
   recordTipP75(tips.p75);
   const healthSnapshot = computeHealthScore(leaderAnalysis.jitoCoveragePct);
   console.log(`[HEALTH] Score: ${healthSnapshot.score}/100 (${healthSnapshot.grade}) | p→c: ${healthSnapshot.pcDeltaMs}ms | tips: ${healthSnapshot.tipTrend}`);
+  dashboardState.networkScore = healthSnapshot.score;
+  dashboardState.networkGrade = healthSnapshot.grade;
+  dashboardState.pcDeltaMs = healthSnapshot.pcDeltaMs;
+  dashboardState.tipTrend = healthSnapshot.tipTrend;
+  dashboardState.tipP25 = tips.p25;
+  dashboardState.tipP50 = tips.p50;
+  dashboardState.tipP75 = tips.p75;
+  dashboardState.tipP95 = tips.p95;
+  renderDashboard(dashboardState);
 
   const tipTrend = detectTipTrend(tips);
 
@@ -284,6 +329,13 @@ async function submitBundle(
       reasoning: tipDecision.reasoning,
     });
   console.log(`[AI] → "${tipDecision.reasoning.slice(0, 120)}..."`);
+  dashboardState.lastAiDecision = {
+    tip: tipDecision.tip_lamports,
+    assessment: tipDecision.network_assessment,
+    confidence: tipDecision.confidence,
+    reasoning: tipDecision.reasoning,
+  };
+  renderDashboard(dashboardState);
 
   // ── Step 3: Check submit timing ────────────────────────────
   const submitCheck = leaderMonitor.shouldSubmitNow(leaderAnalysis);
@@ -312,6 +364,14 @@ async function submitBundle(
     region: CONFIG.isDevnet ? "devnet" : "mainnet",
     ai_tip_reasoning: tipDecision.reasoning,
   });
+  dashboardState.totalBundles++;
+  dashboardState.bundles.push({
+    sequence: bundleSequence,
+    status: "submitted",
+    tip: tipDecision.tip_lamports,
+    submittedSlot: currentSlot,
+  });
+  renderDashboard(dashboardState);
 
   // Watch the signature in the stream
   stream.watchSignature(submissionId, currentSlot);
@@ -368,6 +428,17 @@ async function submitBundle(
     if (result.method === "rpc_fallback") {
       console.log(`   Explorer:  https://explorer.solana.com/tx/${result.bundleId}?cluster=devnet`);
     }
+    // Update dashboard bundle status
+  const dbEntry = dashboardState.bundles.find(b => b.sequence === bundleSequence);
+  if (dbEntry) {
+    dbEntry.status = "confirmed";
+    dbEntry.confirmedSlot = confirmedSlot;
+    dbEntry.latencyMs = result.landedAt
+      ? new Date(result.landedAt).getTime() - new Date(result.submittedAt).getTime()
+      : undefined;
+  }
+  dashboardState.finalized++;
+  renderDashboard(dashboardState);
 
   } else {
     // ── Bundle failed — AI decides what to do ─────────────────
@@ -380,8 +451,13 @@ async function submitBundle(
       timestamp: new Date().toISOString(),
       failure_type: failureType,
     });
+    const dbEntryFail = dashboardState.bundles.find(b => b.sequence === bundleSequence);
+  if (dbEntryFail) dbEntryFail.status = "failed";
+  dashboardState.failed++;
+  renderDashboard(dashboardState);
 
     console.log(`\n❌ Bundle ${bundleSequence} FAILED: ${failureType}`);
+    
 
     // Don't retry if we've hit max retries
     if (retryCount >= CONFIG.maxRetries) {
