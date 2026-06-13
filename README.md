@@ -24,6 +24,11 @@
 </div>
 
 ---
+<div align="center">
+<img src="docs/dashboard_screenshot.png" width="700" alt="KAIROS live terminal dashboard" />
+
+*Live terminal dashboard — real-time slot stream, AI decisions, network health score*
+</div>
 
 ## What Is KAIROS
 
@@ -31,7 +36,9 @@ KAIROS is a production-grade Solana transaction infrastructure stack that solves
 
 Most builders treat transaction submission as a single step. KAIROS treats it as a pipeline with five observable stages, each requiring real-time data, correct commitment handling, and intelligent decision-making when conditions change or failures occur.
 
-**Architecture Document:** https://www.notion.so/KAIROS-Smart-Transaction-Stack-Architecture-2666e018e0628037a240f5d9465f24c3
+> **Architecture Document:** Full system design, failure matrix, data flow diagrams, and infrastructure decisions are documented in the public Notion document.
+> 
+> ### [VIEW ARCHITECTURE DOCUMENT →](https://www.notion.so/KAIROS-Smart-Transaction-Stack-Architecture-2666e018e0628037a240f5d9465f24c3)
 
 **Core capabilities:**
 - Live Yellowstone gRPC slot streaming via SolInfra dedicated Frankfurt node

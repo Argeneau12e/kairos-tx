@@ -25,6 +25,8 @@ export interface BundleEntry {
   new_tip_lamports?: number;
   retry_count: number;
   region?: string;
+  run_type?: "main_run" | "fault_injection";
+  tip_efficiency_pct?: number;
 }
 
 export interface LifecycleUpdate {
@@ -69,7 +71,9 @@ db.exec(`
     ai_failure_reasoning TEXT,
     new_tip_lamports     INTEGER,
     retry_count          INTEGER NOT NULL DEFAULT 0,
-    region               TEXT
+    region               TEXT,
+    run_type             TEXT NOT NULL DEFAULT 'main_run',
+    tip_efficiency_pct   INTEGER
   );
 `);
 
@@ -83,11 +87,11 @@ export function recordSubmission(entry: BundleEntry): void {
     INSERT OR IGNORE INTO bundle_lifecycle (
       bundle_id, sequence, submitted_at, submitted_slot,
       tip_lamports, status, retry_count, region,
-      ai_tip_reasoning
+      ai_tip_reasoning, run_type
     ) VALUES (
       @bundle_id, @sequence, @submitted_at, @submitted_slot,
       @tip_lamports, @status, @retry_count, @region,
-      @ai_tip_reasoning
+      @ai_tip_reasoning, @run_type
     )
   `);
 
@@ -101,6 +105,7 @@ export function recordSubmission(entry: BundleEntry): void {
     retry_count: entry.retry_count ?? 0,
     region: entry.region ?? "devnet",
     ai_tip_reasoning: entry.ai_tip_reasoning ?? null,
+    run_type: entry.run_type ?? "main_run",
   });
 
   console.log(`[STORE] Recorded submission: ${entry.bundle_id} at slot ${entry.submitted_slot}`);
@@ -167,6 +172,14 @@ export function recordAIRetry(
   console.log(`[STORE] Recorded AI retry decision for ${bundle_id}`);
 }
 
+export function recordTipEfficiency(bundle_id: string, efficiency: number): void {
+  const stmt = db.prepare(`
+    UPDATE bundle_lifecycle
+    SET tip_efficiency_pct = ?
+    WHERE bundle_id = ?
+  `);
+  stmt.run(Math.round(efficiency), bundle_id);
+}
 // ============================================================
 // READ FUNCTIONS
 // ============================================================

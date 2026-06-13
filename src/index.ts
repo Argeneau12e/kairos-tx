@@ -17,6 +17,7 @@ import {
   recordSubmission,
   updateStage,
   recordAIRetry,
+  recordTipEfficiency,
   exportToJSON,
   getStats,
 } from "./store/lifecycle";
@@ -28,6 +29,8 @@ import {
   getHealthContext,
   getSessionSummary,
 } from "./stream/networkHealth";
+
+
 
 import {
   DashboardState,
@@ -76,18 +79,30 @@ let dashboardState: DashboardState = {
   networkScore: 0,
   networkGrade: "unknown",
   pcDeltaMs: 1500,
+  pcDeltaTrend: "stable",
   tipP25: 0,
   tipP50: 0,
   tipP75: 0,
   tipP95: 0,
   tipTrend: "stable",
+  jitoCoverage: 0,
+  nextJitoSlot: 0,
+  slotsUntilJito: 0,
+  leaderSchedule: [],
+  blockhashFetchedSlot: 0,
+  blockhashExpiresSlot: 0,
+  healthHistory: [],
   lastAiDecision: null,
   bundles: [],
   totalBundles: 0,
   targetBundles: CONFIG.totalBundles,
   finalized: 0,
   failed: 0,
+  held: 0,
   sessionStartSlot: 0,
+  solSpent: 0,
+  isHolding: false,
+  holdReason: "",
 };
 
 // ============================================================
@@ -252,6 +267,8 @@ async function main() {
 // SUBMIT A SINGLE BUNDLE (with AI decisions + retry logic)
 // ============================================================
 
+
+
 async function submitBundle(
   connection: Connection,
   wallet: Keypair,
@@ -285,6 +302,10 @@ async function submitBundle(
       leaderMonitor.analyze(50),
     ]);
   }
+  
+
+  // Smart Hold — check network health before spending lamports
+  await holdIfDegraded(tips, leaderAnalysis);
 
   // Record tip data and compute health score
   recordTipP75(tips.p75);
@@ -293,11 +314,17 @@ async function submitBundle(
   dashboardState.networkScore = healthSnapshot.score;
   dashboardState.networkGrade = healthSnapshot.grade;
   dashboardState.pcDeltaMs = healthSnapshot.pcDeltaMs;
+  dashboardState.pcDeltaTrend = healthSnapshot.pcDeltaTrend;
   dashboardState.tipTrend = healthSnapshot.tipTrend;
   dashboardState.tipP25 = tips.p25;
   dashboardState.tipP50 = tips.p50;
   dashboardState.tipP75 = tips.p75;
   dashboardState.tipP95 = tips.p95;
+  dashboardState.jitoCoverage = leaderAnalysis.jitoCoveragePct;
+  dashboardState.nextJitoSlot = leaderAnalysis.nextJitoSlot ?? 0;
+  dashboardState.slotsUntilJito = leaderAnalysis.slotsUntilNextJito;
+  dashboardState.leaderSchedule = leaderAnalysis.upcomingWindows.map(w => w.isJito);
+  dashboardState.healthHistory = [...dashboardState.healthHistory.slice(-9), healthSnapshot.score];
   renderDashboard(dashboardState);
 
   const tipTrend = detectTipTrend(tips);
@@ -335,6 +362,7 @@ async function submitBundle(
     assessment: tipDecision.network_assessment,
     confidence: tipDecision.confidence,
     reasoning: tipDecision.reasoning,
+    landingProbability: tipDecision.landing_probability ?? 70,
   };
   renderDashboard(dashboardState);
 
@@ -479,6 +507,17 @@ async function submitBundle(
       recordPcDelta(lastPcDeltaMs);
     }
 
+    // Calculate and record tip efficiency
+    if (tips.p75 > 0) {
+      const efficiency = Math.round((tipDecision.tip_lamports / tips.p75) * 100);
+      recordTipEfficiency(submissionId, efficiency);
+
+      // Update dashboard bundle entry
+      const dbEntry = dashboardState.bundles.find(b => b.sequence === bundleSequence);
+      if (dbEntry) dbEntry.tipEfficiency = efficiency;
+    }
+    
+
     // Track for AI context
     recentBundles.push({
       slot: currentSlot,
@@ -504,6 +543,7 @@ async function submitBundle(
       : undefined;
   }
   dashboardState.finalized++;
+  dashboardState.solSpent += tipDecision.tip_lamports + 5000; // tip + base fee estimate
   renderDashboard(dashboardState);
 
   } else {
@@ -790,6 +830,75 @@ export async function runFaultInjection(): Promise<void> {
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ============================================================
+// SMART HOLD — pauses submission when network is degraded
+// AI agent owns this decision — not hardcoded logic
+// ============================================================
+
+async function holdIfDegraded(
+  tips: any,
+  leaderAnalysis: any
+): Promise<void> {
+  const healthSnapshot = computeHealthScore(leaderAnalysis.jitoCoveragePct);
+
+  if (healthSnapshot.score >= 25) return; // healthy enough to proceed
+
+  // Ask AI agent if we should hold
+  const { decideTip } = await import("./agent/failureReasoning");
+
+  console.log(`\n[HOLD] Network health score ${healthSnapshot.score}/100 — below threshold`);
+  console.log(`[HOLD] Consulting AI agent...`);
+
+  const holdCtx = {
+    currentSlot,
+    nextJitoSlotIn: leaderAnalysis.slotsUntilNextJito,
+    jitoCoveragePct: leaderAnalysis.jitoCoveragePct,
+    tips: { p25: tips.p25, p50: tips.p50, p75: tips.p75, p95: tips.p95 },
+    tipTrend: detectTipTrend(tips) as any,
+    recentBundles: recentBundles.slice(-3),
+    pcDeltaMs: lastPcDeltaMs,
+    healthScore: healthSnapshot.score,
+    healthContext: getHealthContext(healthSnapshot),
+  };
+
+  const decision = await decideTip(holdCtx);
+
+  if (decision.landing_probability !== undefined && decision.landing_probability < 30) {
+    const holdReason = `Health ${healthSnapshot.score}/100 — AI estimates ${decision.landing_probability}% landing probability`;
+    console.log(`[HOLD] AI recommends holding: ${holdReason}`);
+
+    dashboardState.isHolding = true;
+    dashboardState.holdReason = holdReason;
+    dashboardState.held++;
+    renderDashboard(dashboardState);
+
+    // Wait for recovery — check every 5 seconds
+    let attempts = 0;
+    while (attempts < 12) { // max 60 seconds hold
+      await sleep(5000);
+      attempts++;
+
+      // Re-check health
+      const newHealth = computeHealthScore(leaderAnalysis.jitoCoveragePct);
+      console.log(`[HOLD] Recovery check ${attempts}/12 — score: ${newHealth.score}/100`);
+
+      if (newHealth.score >= 35) {
+        console.log(`[HOLD] Network recovered to ${newHealth.score}/100 — resuming`);
+        dashboardState.isHolding = false;
+        dashboardState.holdReason = "";
+        renderDashboard(dashboardState);
+        return;
+      }
+    }
+
+    // Timed out — submit anyway
+    console.log(`[HOLD] Hold timeout — submitting regardless`);
+    dashboardState.isHolding = false;
+    dashboardState.holdReason = "";
+    renderDashboard(dashboardState);
+  }
 }
 
 // ============================================================

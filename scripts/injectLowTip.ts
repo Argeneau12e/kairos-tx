@@ -14,9 +14,9 @@ import {
 } from "../src/store/lifecycle";
 
 async function injectLowTip() {
-  console.log("\n╔════════════════════════════════════════╗");
+  console.log("╔════════════════════════════════════════╗");
   console.log("║   KAIROS — Fault Injection: Low Tip    ║");
-  console.log("║   Simulating fee_too_low failure       ║");
+  console.log("║   Real Jito mainnet rejection test     ║");
   console.log("╚════════════════════════════════════════╝\n");
 
   const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";

@@ -154,8 +154,10 @@ export async function buildBundle(
   tx1.feePayer = wallet.publicKey;
 
   // Add compute budget — good practice, shows we understand CU pricing
+  // Budget will be overridden after simulation if simulateBundle is called
+  // Default 60,000 as safe initial value
   tx1.add(
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 50_000 }),
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 60_000 }),
     ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 })
   );
 
@@ -266,6 +268,7 @@ export interface SimulationResult {
   errorType?: string;
   errorMessage?: string;
   unitsConsumed?: number;
+  recommendedBudget?: number;
   logs?: string[];
 }
 
@@ -311,9 +314,12 @@ export async function simulateBundle(
     const units = simulation.value.unitsConsumed ?? 0;
     console.log(`[PREFLIGHT] ✅ Simulation passed — ${units.toLocaleString()} compute units`);
 
+    // Add 15% buffer to simulated CU for safety
+    const recommendedBudget = Math.ceil(units * 1.15);
     return {
       passed: true,
       unitsConsumed: units,
+      recommendedBudget,
       logs: simulation.value.logs ?? [],
     };
 

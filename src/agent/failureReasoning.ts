@@ -34,6 +34,7 @@ export interface TipDecision {
   tip_lamports: number;
   confidence: "low" | "medium" | "high";
   percentile_target: number;
+  landing_probability: number;
 }
 
 export interface FailureContext {
@@ -93,12 +94,14 @@ function tipFallback(ctx: TipContext): TipDecision {
     assessment = "congested";
   }
 
+  const landingProb = assessment === "healthy" ? 85 : assessment === "congested" ? 65 : 40;
   return {
-    reasoning: `[FALLBACK] Rule-based decision. p→c delta: ${ctx.pcDeltaMs}ms. Assessment: ${assessment}. Using ${percentile}th percentile.`,
+    reasoning: `[FALLBACK] Rule-based decision...`,
     network_assessment: assessment,
-    tip_lamports: tip,
+    tip_lamports: Math.min(tip, 50000), // hard cap
     confidence: "medium",
     percentile_target: percentile,
+    landing_probability: landingProb,
   };
 }
 
@@ -177,6 +180,7 @@ DECISION RULES:
 3. If last bundle failed due to low tip, increase aggressively
 4. Final tip must be between P25 and P95
 5. Show your reasoning step by step
+6. HARD LIMIT: tip_lamports must never exceed 50000 (50,000 lamports = 0.00005 SOL)
 
 Respond ONLY with this exact JSON structure, no other text:
 {
@@ -184,7 +188,8 @@ Respond ONLY with this exact JSON structure, no other text:
   "network_assessment": "healthy" or "congested" or "degraded",
   "tip_lamports": <integer>,
   "confidence": "low" or "medium" or "high",
-  "percentile_target": <integer between 25 and 95>
+  "percentile_target": <integer between 25 and 95>,
+  "landing_probability": <integer 0-100, estimate of bundle landing probability given current conditions>
 }`;
 
   try {
@@ -204,7 +209,9 @@ Respond ONLY with this exact JSON structure, no other text:
 
     const raw = response.choices[0].message.content ?? "{}";
     const decision = JSON.parse(raw) as TipDecision;
-    console.log(`[AGENT] Tip decision: ${decision.tip_lamports} lam (${decision.network_assessment}, confidence: ${decision.confidence})`);
+    // Safety cap — never exceed 50,000 lamports on any network
+    decision.tip_lamports = Math.min(decision.tip_lamports, 50000);
+    console.log(`[AGENT] Tip decision: ${decision.tip_lamports} lam...`);
     return decision;
 
   } catch (err: any) {

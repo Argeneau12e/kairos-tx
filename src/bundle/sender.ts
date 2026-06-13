@@ -25,9 +25,9 @@ export interface SendResult {
 const JITO_ENDPOINTS = {
   devnet:  "https://devnet.block-engine.jito.wtf",
   mainnet: [
-    "https://mainnet.block-engine.jito.wtf",
     "https://amsterdam.mainnet.block-engine.jito.wtf",
     "https://frankfurt.mainnet.block-engine.jito.wtf",
+    "https://mainnet.block-engine.jito.wtf",
     "https://ny.mainnet.block-engine.jito.wtf",
     "https://tokyo.mainnet.block-engine.jito.wtf",
   ],
@@ -77,8 +77,7 @@ export async function sendBundle(
   const reachable = await isJitoReachable(endpoint);
 
   if (!reachable) {
-    console.warn(`[SENDER] ⚠️  Jito block engine unreachable at ${endpoint}`);
-    console.warn(`[SENDER] This is common on devnet — falling back to RPC submission`);
+    console.warn(`[SENDER] ⚠️  Jito block engine unreachable at ${endpoint} — falling back to RPC`);
 
     // Fall back to regular RPC submission
     return sendViaRpc(bundle, isDevnet, submittedAt);
@@ -238,7 +237,7 @@ async function sendViaRpc(
 export async function pollBundleStatus(
   bundleId: string,
   isDevnet: boolean,
-  maxAttempts = 45,
+  maxAttempts = 20,
   intervalMs = 3000
 ): Promise<{
   status: "landed" | "failed" | "timeout";
@@ -349,11 +348,10 @@ export async function sendAndTrack(
     };
   }
 
-  return {
-    ...sendResult,
-    status: "timeout",
-    failureReason: "No confirmation within polling window",
-  };
+  // Jito timeout — fall back to RPC submission
+  console.log(`[SENDER] Jito timeout — falling back to RPC submission`);
+  const rpcResult = await sendViaRpc(bundle, isDevnet, sendResult.submittedAt);
+  return rpcResult;
 }
 
 // ============================================================
