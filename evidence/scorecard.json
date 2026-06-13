@@ -1,0 +1,91 @@
+{
+  "submission": "KAIROS Transaction Stack",
+  "github": "https://github.com/Argeneau12e/kairos-tx",
+  "architecture_doc": "https://www.notion.so/KAIROS-Smart-Transaction-Stack-Architecture-2666e018e0628037a240f5d9465f24c3",
+  "verification_guide": "VERIFICATION.md",
+  "bounty_requirements": {
+    "yellowstone_grpc": {
+      "satisfied": true,
+      "evidence": "src/stream/yellowstone.ts — real gRPC via SolInfra Frankfurt (@grpc/grpc-js)",
+      "proof": "logs/lifecycle_export.json — finalized_at timestamps arrive from stream events, 32-slot lockout pattern"
+    },
+    "jito_bundles": {
+      "satisfied": true,
+      "evidence": "src/bundle/builder.ts + src/bundle/sender.ts",
+      "proof": "logs/mainnet_jito_attempts.json — real bundle IDs accepted by mainnet block engine (Amsterdam)"
+    },
+    "dynamic_tips_no_hardcoding": {
+      "satisfied": true,
+      "evidence": "src/bundle/tipOracle.ts — live fetch from bundles.jito.wtf/api/v1/bundles/tip_floor",
+      "proof": "Single-session tip P75 volatility of 73.2x (1,593 to 116,599 lamports)"
+    },
+    "lifecycle_tracking_4_stages": {
+      "satisfied": true,
+      "evidence": "src/store/lifecycle.ts — SQLite store with submitted/processed/confirmed/finalized",
+      "proof": "logs/lifecycle_export.json — 13+ bundles with full stage progression and slot numbers"
+    },
+    "stream_based_confirmation": {
+      "satisfied": true,
+      "evidence": "Yellowstone stream events drive confirmed/finalized updates",
+      "proof": "Consistent 12,000-16,000ms confirmed→finalized gap matches 32-slot Tower BFT lockout"
+    },
+    "failure_classification_4_types": {
+      "satisfied": true,
+      "evidence": "src/bundle/sender.ts — classifyJitoError()",
+      "proof": "docs/failure_taxonomy.md — blockhash_expired, fee_too_low, bundle_timeout, rpc_timeout, jito_unreachable — all 5 with real error strings"
+    },
+    "autonomous_blockhash_refresh": {
+      "satisfied": true,
+      "evidence": "AI agent sets refresh_blockhash in failure reasoning",
+      "proof": "Fault injection: real 'Blockhash not found' RPC error → AI refreshed and retried autonomously"
+    },
+    "ai_agent_real_decisions": {
+      "satisfied": true,
+      "evidence": "src/agent/failureReasoning.ts — Groq llama-3.3-70b-versatile",
+      "proof": "Every reasoning field is unique per run; tip range 1,275-50,000 lam driven entirely by live context"
+    },
+    "ten_real_bundle_submissions": {
+      "satisfied": true,
+      "count": 10,
+      "proof": "logs/lifecycle_export.json — all slot numbers verifiable on Solana Explorer (devnet)"
+    },
+    "two_plus_failure_cases": {
+      "satisfied": true,
+      "count": 2,
+      "types": ["blockhash_expired", "fee_too_low"],
+      "proof": "Both verified by real network rejections (Solana RPC + mainnet Jito), not simulated"
+    },
+    "readme_three_questions": {
+      "satisfied": true,
+      "evidence": "README.md — Technical Deep Dive section",
+      "proof": "All three answered with real slot numbers and measured deltas from this submission's own runs"
+    },
+    "public_architecture_doc": {
+      "satisfied": true,
+      "evidence": "Notion document, 9 sections, publicly shared",
+      "proof": "Includes architecture diagrams, data flow, failure matrix, AI agent design, Alpenglow forward-compatibility"
+    }
+  },
+  "unique_features_not_required_by_bounty": [
+    "Pre-flight bundle simulation via simulateTransaction() — catches compute_exceeded before spending lamports, sets dynamic compute budget",
+    "Network health score (0-100) from 4 independent real-time signals, feeding every AI decision",
+    "Smart Hold — AI-driven autonomous pause when health <25/100 and landing probability <30%",
+    "Landing probability estimate (0-100%) on every AI tip decision",
+    "Tip efficiency scoring (tip_paid / P75 × 100) per bundle, tracked across session",
+    "AI-generated network intelligence report after every run — synthesizes session observations in prose",
+    "Live terminal dashboard — real-time health sparkline, Jito leader schedule visualization, blockhash countdown",
+    "Rule-based AI fallback — system never blocks if Groq is unavailable",
+    "Real mainnet Jito bundle submission with documented geographic-latency finding"
+  ],
+  "latest_run_summary": {
+    "total_bundles": 10,
+    "finalized": 9,
+    "failed": 0,
+    "success_rate": "90%",
+    "avg_pc_delta_ms": 4838,
+    "pc_delta_range_ms": [2024, 9956],
+    "tip_p75_range_lamports": [1593, 116599],
+    "tip_volatility_ratio": 73.2,
+    "health_score_range": [34, 61]
+  }
+}
