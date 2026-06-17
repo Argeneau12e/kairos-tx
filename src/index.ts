@@ -348,6 +348,7 @@ async function submitBundle(
     reasoning: tipDecision.reasoning,
   });
   console.log(`[AI] → "${tipDecision.reasoning.slice(0, 120)}..."`);
+  console.log(`[AI] Prompt hash: ${tipDecision.prompt_hash}`);
   dashboardState.lastAiDecision = {
     tip: tipDecision.tip_lamports,
     assessment: tipDecision.network_assessment,

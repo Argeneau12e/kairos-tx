@@ -1,5 +1,20 @@
 <div align="center">
 
+<img src="docs/kairos_gradient.png" width="600" alt="KAIROS" />
+
+<br/><br/>
+
+[<img src="docs/dashboard_demo.gif" width="760" alt="KAIROS live terminal dashboard" />](https://asciinema.org/a/hS20bF07FLOq2bUF)
+
+*Live terminal dashboard — health sparkline · Jito leader schedule · blockhash countdown · AI reasoning · bundle pipeline with tip efficiency*
+
+<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/play.svg" width="14" height="14" align="absmiddle" /> [Open the full interactive recording on asciinema](https://asciinema.org/a/hS20bF07FLOq2bUF)
+
+</div>
+<br/>
+
+<div align="center">
+
 ```
 ██╗  ██╗ █████╗ ██╗██████╗  ██████╗ ███████╗
 ██║ ██╔╝██╔══██╗██║██╔══██╗██╔═══██╗██╔════╝
@@ -29,17 +44,12 @@
 >
 > ## → [VIEW THE FULL ARCHITECTURE DOCUMENT](https://www.notion.so/KAIROS-Smart-Transaction-Stack-Architecture-2666e018e0628037a240f5d9465f24c3) ←
 >
-> *(Judged separately per the bounty spec — this link matters)*
 
 <br/>
 
 <div align="center">
 
 <img src="docs/dashboard_screenshot.png" width="760" alt="KAIROS live terminal dashboard" />
-
-*Real-time dashboard — health sparkline · Jito leader schedule · blockhash countdown · AI reasoning · bundle pipeline with tip efficiency*
-
-[<img src="docs/dashboard_demo.gif" width="760" alt="KAIROS live demo" />](https://asciinema.org/a/hS20bF07FLOq2bUF)
 
 </div>
 

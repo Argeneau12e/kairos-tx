@@ -1,4 +1,5 @@
 import Groq from "groq-sdk";
+import { createHash } from "crypto";
 import * as dotenv from "dotenv";
 dotenv.config();
 
@@ -35,6 +36,7 @@ export interface TipDecision {
   confidence: "low" | "medium" | "high";
   percentile_target: number;
   landing_probability: number;
+  prompt_hash?: string;
 }
 
 export interface FailureContext {
@@ -61,6 +63,7 @@ export interface FailureDecision {
   new_tip_lamports: number;
   refresh_blockhash: boolean;
   confidence: "low" | "medium" | "high";
+  prompt_hash?: string;
 }
 
 // ============================================================
@@ -102,6 +105,7 @@ function tipFallback(ctx: TipContext): TipDecision {
     confidence: "medium",
     percentile_target: percentile,
     landing_probability: landingProb,
+    prompt_hash: "fallback-no-llm-call",
   };
 }
 
@@ -117,6 +121,7 @@ function failureFallback(ctx: FailureContext): FailureDecision {
       new_tip_lamports: ctx.tips.p95,
       refresh_blockhash: true,
       confidence: "high",
+      prompt_hash: "fallback-no-llm-call",
     };
   }
 
@@ -129,6 +134,7 @@ function failureFallback(ctx: FailureContext): FailureDecision {
       new_tip_lamports: Math.round((ctx.tips.p75 + ctx.tips.p95) / 2),
       refresh_blockhash: false,
       confidence: "high",
+      prompt_hash: "fallback-no-llm-call",
     };
   }
 
@@ -140,6 +146,7 @@ function failureFallback(ctx: FailureContext): FailureDecision {
     new_tip_lamports: 0,
     refresh_blockhash: false,
     confidence: "low",
+    prompt_hash: "fallback-no-llm-call",
   };
 }
 
@@ -192,6 +199,11 @@ Respond ONLY with this exact JSON structure, no other text:
   "landing_probability": <integer 0-100, estimate of bundle landing probability given current conditions>
 }`;
 
+  // Hash the exact prompt sent to the model — lets anyone verify later
+  // that a given decision actually came from this exact input.
+  const promptHash = createHash("sha256").update(prompt).digest("hex").slice(0, 16);
+  console.log(`[AGENT] Prompt hash: ${promptHash}`);
+
   try {
     const response = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
@@ -211,6 +223,7 @@ Respond ONLY with this exact JSON structure, no other text:
     const decision = JSON.parse(raw) as TipDecision;
     // Safety cap — never exceed 50,000 lamports on any network
     decision.tip_lamports = Math.min(decision.tip_lamports, 50000);
+    decision.prompt_hash = promptHash;
     console.log(`[AGENT] Tip decision: ${decision.tip_lamports} lam...`);
     return decision;
 
@@ -271,6 +284,9 @@ Respond ONLY with this exact JSON structure, no other text:
   "confidence": "low" or "medium" or "high"
 }`;
 
+  const promptHash = createHash("sha256").update(prompt).digest("hex").slice(0, 16);
+  console.log(`[AGENT] Prompt hash: ${promptHash}`);
+
   try {
     const response = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
@@ -288,6 +304,7 @@ Respond ONLY with this exact JSON structure, no other text:
 
     const raw = response.choices[0].message.content ?? "{}";
     const decision = JSON.parse(raw) as FailureDecision;
+    decision.prompt_hash = promptHash;
     console.log(`[AGENT] Failure decision: ${decision.action} | root cause: ${decision.root_cause}`);
     return decision;
 
@@ -306,14 +323,12 @@ async function test() {
   console.log("  KAIROS — AI Agent Test");
   console.log("========================================\n");
 
-  // Make sure GROQ_API_KEY is loaded
   if (!process.env.GROQ_API_KEY) {
     console.error("❌ GROQ_API_KEY not found in .env file");
     process.exit(1);
   }
   console.log("✅ Groq API key loaded\n");
 
-  // Test 1: Tip intelligence
   console.log("--- Test 1: Tip Intelligence ---");
   const tipCtx: TipContext = {
     currentSlot: 368502500,
@@ -337,7 +352,6 @@ async function test() {
   console.log("\nFull tip decision:");
   console.log(JSON.stringify(tipDecision, null, 2));
 
-  // Test 2: Failure reasoning — blockhash expired
   console.log("\n--- Test 2: Failure Reasoning (blockhash_expired) ---");
   const failureCtx: FailureContext = {
     bundle_id: "test-bundle-007",
@@ -359,7 +373,6 @@ async function test() {
   console.log("\nFull failure decision:");
   console.log(JSON.stringify(failureDecision, null, 2));
 
-  // Test 3: Failure reasoning — fee too low
   console.log("\n--- Test 3: Failure Reasoning (fee_too_low) ---");
   const failureCtx2: FailureContext = {
     bundle_id: "test-bundle-008",
