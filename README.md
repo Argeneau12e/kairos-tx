@@ -23,11 +23,11 @@
 
 <br/>
 
-> ### 📐 Architecture Document
+> ### <img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/compass.svg" width="20" height="20" align="absmiddle" /> Architecture Document
 >
 > Full system design — component diagrams, data flow, failure-handling matrix, AI agent design, infrastructure decisions, and Alpenglow forward-compatibility.
 >
-> ## ➡️ [VIEW THE FULL ARCHITECTURE DOCUMENT](https://www.notion.so/KAIROS-Smart-Transaction-Stack-Architecture-2666e018e0628037a240f5d9465f24c3) ⬅️
+> ## → [VIEW THE FULL ARCHITECTURE DOCUMENT](https://www.notion.so/KAIROS-Smart-Transaction-Stack-Architecture-2666e018e0628037a240f5d9465f24c3) ←
 >
 > *(Judged separately per the bounty spec — this link matters)*
 
@@ -39,7 +39,7 @@
 
 *Real-time dashboard — health sparkline · Jito leader schedule · blockhash countdown · AI reasoning · bundle pipeline with tip efficiency*
 
-**▶ [Watch a full live run (asciinema recording)](https://asciinema.org/a/hS20bF07FLOq2bUF)**
+[<img src="docs/dashboard_demo.gif" width="760" alt="KAIROS live demo" />](https://asciinema.org/a/hS20bF07FLOq2bUF)
 
 </div>
 

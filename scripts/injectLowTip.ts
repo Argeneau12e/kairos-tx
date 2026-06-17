@@ -56,6 +56,7 @@ async function injectLowTip() {
     status: "submitted",
     retry_count: 0,
     region: "devnet",
+    run_type: "fault_injection",
     ai_tip_reasoning: `[FAULT INJECTION] Deliberately using ${BAD_TIP} lamports tip to force fee_too_low failure. P25 is ${tips.p25} lam.`,
   });
 
@@ -182,6 +183,7 @@ async function injectLowTip() {
       status: "submitted",
       retry_count: 1,
       region: "devnet",
+      run_type: "fault_injection",
       ai_tip_reasoning: `AI retry after fee_too_low: increased from ${BAD_TIP} to ${decision.new_tip_lamports} lam`,
     });
 

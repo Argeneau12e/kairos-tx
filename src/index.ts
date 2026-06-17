@@ -30,8 +30,6 @@ import {
   getSessionSummary,
 } from "./stream/networkHealth";
 
-
-
 import {
   DashboardState,
   renderDashboard,
@@ -181,8 +179,6 @@ async function main() {
     }
   });
 
-  
-
   await stream.start();
 
   // Give stream a moment to sync
@@ -267,8 +263,6 @@ async function main() {
 // SUBMIT A SINGLE BUNDLE (with AI decisions + retry logic)
 // ============================================================
 
-
-
 async function submitBundle(
   connection: Connection,
   wallet: Keypair,
@@ -279,13 +273,11 @@ async function submitBundle(
 ): Promise<void> {
 
   // ── Step 1: Get live context ───────────────────────────────
-  // Refresh current slot — retry on network timeout
   try {
     const rpcSlot = await leaderMonitor.getCurrentSlot();
     if (rpcSlot > currentSlot) currentSlot = rpcSlot;
   } catch (err: any) {
     console.warn(`[MAIN] RPC slot fetch failed: ${err.message} — using stream slot ${currentSlot}`);
-    // Stream slot is still valid, continue with it
   }
 
   let tips, leaderAnalysis;
@@ -302,7 +294,6 @@ async function submitBundle(
       leaderMonitor.analyze(50),
     ]);
   }
-  
 
   // Smart Hold — check network health before spending lamports
   await holdIfDegraded(tips, leaderAnalysis);
@@ -351,11 +342,11 @@ async function submitBundle(
   const tipDecision = await decideTip(tipCtx);
   console.log(`[AI] → ${tipDecision.tip_lamports} lam | ${tipDecision.network_assessment} | ${tipDecision.confidence} confidence`);
   aiDecisionLog.push({
-      bundle: bundleSequence,
-      tip: tipDecision.tip_lamports,
-      assessment: tipDecision.network_assessment,
-      reasoning: tipDecision.reasoning,
-    });
+    bundle: bundleSequence,
+    tip: tipDecision.tip_lamports,
+    assessment: tipDecision.network_assessment,
+    reasoning: tipDecision.reasoning,
+  });
   console.log(`[AI] → "${tipDecision.reasoning.slice(0, 120)}..."`);
   dashboardState.lastAiDecision = {
     tip: tipDecision.tip_lamports,
@@ -379,6 +370,9 @@ async function submitBundle(
     CONFIG.isDevnet,
     memo
   );
+  dashboardState.blockhashFetchedSlot = bundle.builtAtSlot;
+  dashboardState.blockhashExpiresSlot = bundle.expiresAtSlot;
+  renderDashboard(dashboardState);
 
   // ── Step 4.5: Pre-flight simulation ───────────────────────
   console.log(`[PREFLIGHT] Simulating bundle before submission...`);
@@ -388,7 +382,6 @@ async function submitBundle(
     console.log(`[PREFLIGHT] ❌ Bundle failed simulation — ${simResult.errorType}`);
     console.log(`[PREFLIGHT] Skipping submission to save lamports`);
 
-    // Log to AI agent for analysis
     const prefailId = `kairos-prefail-${bundleSequence}-${Date.now()}`;
     recordSubmission({
       bundle_id: prefailId,
@@ -410,7 +403,6 @@ async function submitBundle(
       failure_type: simResult.errorType,
     });
 
-    // Ask AI to analyze the simulation failure
     if (retryCount < CONFIG.maxRetries) {
       const simFailureCtx: FailureContext = {
         bundle_id: prefailId,
@@ -437,11 +429,31 @@ async function submitBundle(
     return;
   }
 
-  // Simulation passed — log compute units for visibility
+  // ── Step 4.6: Apply the optimized compute budget ───────────
+  // Simulation tells us exactly how many CU the tx really needs.
+  // Rebuild with that tighter limit (+15% buffer) before sending —
+  // this is what actually makes the optimization real, not just measured.
+  let finalBundle = bundle;
+  if (simResult.recommendedBudget && simResult.recommendedBudget > 0) {
+    console.log(`[PREFLIGHT] Optimizing compute budget: 60,000 → ${simResult.recommendedBudget} CU`);
+    finalBundle = await buildBundle(
+      connection,
+      wallet,
+      tipDecision.tip_lamports,
+      CONFIG.isDevnet,
+      memo,
+      simResult.recommendedBudget
+    );
+    // finalBundle has a fresh blockhash — keep the dashboard countdown accurate
+    dashboardState.blockhashFetchedSlot = finalBundle.builtAtSlot;
+    dashboardState.blockhashExpiresSlot = finalBundle.expiresAtSlot;
+  }
+
   if (simResult.unitsConsumed && simResult.unitsConsumed > 0) {
+    const appliedBudget = simResult.recommendedBudget ?? 60000;
     dashboardState.lastAiDecision = {
       ...dashboardState.lastAiDecision!,
-      reasoning: `[PREFLIGHT OK: ${simResult.unitsConsumed.toLocaleString()} CU] ${dashboardState.lastAiDecision?.reasoning ?? ""}`,
+      reasoning: `[PREFLIGHT OK: ${simResult.unitsConsumed.toLocaleString()} CU, budget ${appliedBudget.toLocaleString()} CU] ${dashboardState.lastAiDecision?.reasoning ?? ""}`,
     };
   }
 
@@ -472,13 +484,12 @@ async function submitBundle(
 
   // ── Step 6: Send ───────────────────────────────────────────
   console.log(`[SEND] Submitting...`);
-  const result = await sendAndTrack(bundle, CONFIG.isDevnet);
+  const result = await sendAndTrack(finalBundle, CONFIG.isDevnet);
 
   // ── Step 7: Handle result ──────────────────────────────────
   if (result.status === "landed") {
-    // Use actual confirmed slot from RPC result, fall back to current stream slot
     const confirmedSlot = result.slotsElapsed
-      ? bundle.builtAtSlot + result.slotsElapsed
+      ? finalBundle.builtAtSlot + result.slotsElapsed
       : currentSlot;
 
     updateStage({
@@ -488,8 +499,8 @@ async function submitBundle(
       timestamp: result.landedAt ?? new Date().toISOString(),
     });
 
-    // Real Yellowstone stream fires finalized events automatically
-    // This setTimeout is a safety net for devnet where stream events may be sparse
+    // Real Yellowstone stream fires finalized events automatically.
+    // This setTimeout is a safety net for devnet where stream events may be sparse.
     const finalizedSlotEstimate = confirmedSlot + 32;
     setTimeout(() => {
       updateStage({
@@ -500,25 +511,20 @@ async function submitBundle(
       });
     }, 13_000);
 
-    // Update p→c delta and feed into health score
     if (result.submittedAt && result.landedAt) {
       lastPcDeltaMs = new Date(result.landedAt).getTime() -
                       new Date(result.submittedAt).getTime();
       recordPcDelta(lastPcDeltaMs);
     }
 
-    // Calculate and record tip efficiency
     if (tips.p75 > 0) {
       const efficiency = Math.round((tipDecision.tip_lamports / tips.p75) * 100);
       recordTipEfficiency(submissionId, efficiency);
 
-      // Update dashboard bundle entry
       const dbEntry = dashboardState.bundles.find(b => b.sequence === bundleSequence);
       if (dbEntry) dbEntry.tipEfficiency = efficiency;
     }
-    
 
-    // Track for AI context
     recentBundles.push({
       slot: currentSlot,
       status: "finalized",
@@ -533,18 +539,18 @@ async function submitBundle(
     if (result.method === "rpc_fallback") {
       console.log(`   Explorer:  https://explorer.solana.com/tx/${result.bundleId}?cluster=devnet`);
     }
-    // Update dashboard bundle status
-  const dbEntry = dashboardState.bundles.find(b => b.sequence === bundleSequence);
-  if (dbEntry) {
-    dbEntry.status = "confirmed";
-    dbEntry.confirmedSlot = confirmedSlot;
-    dbEntry.latencyMs = result.landedAt
-      ? new Date(result.landedAt).getTime() - new Date(result.submittedAt).getTime()
-      : undefined;
-  }
-  dashboardState.finalized++;
-  dashboardState.solSpent += tipDecision.tip_lamports + 5000; // tip + base fee estimate
-  renderDashboard(dashboardState);
+
+    const dbEntry = dashboardState.bundles.find(b => b.sequence === bundleSequence);
+    if (dbEntry) {
+      dbEntry.status = "confirmed";
+      dbEntry.confirmedSlot = confirmedSlot;
+      dbEntry.latencyMs = result.landedAt
+        ? new Date(result.landedAt).getTime() - new Date(result.submittedAt).getTime()
+        : undefined;
+    }
+    dashboardState.finalized++;
+    dashboardState.solSpent += tipDecision.tip_lamports + 5000; // tip + base fee estimate
+    renderDashboard(dashboardState);
 
   } else {
     // ── Bundle failed — AI decides what to do ─────────────────
@@ -558,14 +564,12 @@ async function submitBundle(
       failure_type: failureType,
     });
     const dbEntryFail = dashboardState.bundles.find(b => b.sequence === bundleSequence);
-  if (dbEntryFail) dbEntryFail.status = "failed";
-  dashboardState.failed++;
-  renderDashboard(dashboardState);
+    if (dbEntryFail) dbEntryFail.status = "failed";
+    dashboardState.failed++;
+    renderDashboard(dashboardState);
 
     console.log(`\n❌ Bundle ${bundleSequence} FAILED: ${failureType}`);
-    
 
-    // Don't retry if we've hit max retries
     if (retryCount >= CONFIG.maxRetries) {
       console.log(`[AI] Max retries reached (${CONFIG.maxRetries}) — moving on`);
       recentBundles.push({
@@ -577,14 +581,13 @@ async function submitBundle(
       return;
     }
 
-    // Ask AI agent what to do
     console.log(`[AI] Analyzing failure...`);
     const failureCtx: FailureContext = {
       bundle_id: submissionId,
       failure_type: failureType,
-      submitted_slot: bundle.builtAtSlot,
+      submitted_slot: finalBundle.builtAtSlot,
       current_slot: currentSlot,
-      slots_elapsed: currentSlot - bundle.builtAtSlot,
+      slots_elapsed: currentSlot - finalBundle.builtAtSlot,
       tip_used: tipDecision.tip_lamports,
       tips: {
         p25: tips.p25,
@@ -601,7 +604,6 @@ async function submitBundle(
     console.log(`[AI] Root cause: ${failureDecision.root_cause}`);
     console.log(`[AI] Reasoning: "${failureDecision.reasoning.slice(0, 150)}..."`);
 
-    // Record AI retry decision in lifecycle store
     recordAIRetry(
       submissionId,
       failureDecision.reasoning,
@@ -626,7 +628,6 @@ async function submitBundle(
       await sleep(waitMs);
     }
 
-    // Retry with AI's recommendation
     console.log(`\n[AI] Retrying bundle ${bundleSequence} (attempt ${retryCount + 1})...`);
     return submitBundle(
       connection,
@@ -640,8 +641,8 @@ async function submitBundle(
 
 // ============================================================
 // FAULT INJECTION MODE
-// Run with: npm run inject:blockhash
-// Forces a blockhash expiry failure for testing
+// Run with: npm run inject
+// Forces a real blockhash expiry failure for testing
 // ============================================================
 
 export async function runFaultInjection(): Promise<void> {
@@ -656,30 +657,22 @@ export async function runFaultInjection(): Promise<void> {
   const wallet = loadWallet();
   const leaderMonitor = new LeaderMonitor(rpcUrl);
 
-  // Get a blockhash NOW
   const bh = await leaderMonitor.getBlockhash();
   console.log(`[INJECT] Got blockhash at slot ${bh.fetchedAtSlot}`);
   console.log(`[INJECT] Valid until slot ${bh.expiresAtSlot}`);
   console.log(`[INJECT] Now waiting 65 seconds for it to expire...`);
   console.log(`[INJECT] (150 slots × 400ms = 60s, waiting 65s to be safe)\n`);
 
-  // Wait for the blockhash to expire
   await sleep(65_000);
 
   const currentSlotNow = await connection.getSlot("processed");
   const slotsElapsed = currentSlotNow - bh.fetchedAtSlot;
   console.log(`[INJECT] Blockhash age: ${slotsElapsed} slots (expired: ${slotsElapsed >= 150})`);
 
-  // Now try to submit with the expired blockhash
-  // The RPC will reject it with a blockhash expiry error
   console.log(`[INJECT] Submitting with expired blockhash...`);
 
   const tips = await fetchTipPercentiles();
 
-  // Manually build with the OLD expired blockhash
-  const { buildBundleWithBlockhash } = require("./bundle/builder");
-
-  // Actually submit with the expired blockhash — capture real error
   const submissionId = `kairos-fault-${Date.now()}`;
   bundleSequence = 99;
 
@@ -692,12 +685,12 @@ export async function runFaultInjection(): Promise<void> {
     status: "submitted",
     retry_count: 0,
     region: "devnet",
+    run_type: "fault_injection",
     ai_tip_reasoning: "Fault injection — using intentionally expired blockhash",
   });
 
-  // Build a real transaction with the EXPIRED blockhash
   const expiredTx = new Transaction();
-  expiredTx.recentBlockhash = bh.blockhash;  // The expired one
+  expiredTx.recentBlockhash = bh.blockhash;
   expiredTx.feePayer = wallet.publicKey;
   expiredTx.add(
     SystemProgram.transfer({
@@ -708,7 +701,6 @@ export async function runFaultInjection(): Promise<void> {
   );
   expiredTx.sign(wallet);
 
-  // Submit it and capture the real rejection
   let realFailureType = "blockhash_expired";
   try {
     await connection.sendRawTransaction(expiredTx.serialize(), {
@@ -738,7 +730,6 @@ export async function runFaultInjection(): Promise<void> {
   console.log(`\n[INJECT] ❌ Bundle rejected — blockhash expired after ${slotsElapsed} slots`);
   console.log(`[INJECT] Failure type confirmed by RPC: ${realFailureType}`);
 
-  // Now let AI analyze it
   console.log(`\n[AI] Analyzing blockhash expiry failure...`);
   const failureCtx: FailureContext = {
     bundle_id: submissionId,
@@ -785,6 +776,7 @@ export async function runFaultInjection(): Promise<void> {
       status: "submitted",
       retry_count: 1,
       region: "devnet",
+      run_type: "fault_injection",
       ai_tip_reasoning: `Retry after AI failure analysis: ${decision.root_cause}`,
     });
 
@@ -845,7 +837,6 @@ async function holdIfDegraded(
 
   if (healthSnapshot.score >= 25) return; // healthy enough to proceed
 
-  // Ask AI agent if we should hold
   const { decideTip } = await import("./agent/failureReasoning");
 
   console.log(`\n[HOLD] Network health score ${healthSnapshot.score}/100 — below threshold`);
@@ -874,13 +865,11 @@ async function holdIfDegraded(
     dashboardState.held++;
     renderDashboard(dashboardState);
 
-    // Wait for recovery — check every 5 seconds
     let attempts = 0;
-    while (attempts < 12) { // max 60 seconds hold
+    while (attempts < 12) {
       await sleep(5000);
       attempts++;
 
-      // Re-check health
       const newHealth = computeHealthScore(leaderAnalysis.jitoCoveragePct);
       console.log(`[HOLD] Recovery check ${attempts}/12 — score: ${newHealth.score}/100`);
 
@@ -893,7 +882,6 @@ async function holdIfDegraded(
       }
     }
 
-    // Timed out — submit anyway
     console.log(`[HOLD] Hold timeout — submitting regardless`);
     dashboardState.isHolding = false;
     dashboardState.holdReason = "";
