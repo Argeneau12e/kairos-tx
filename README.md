@@ -96,7 +96,7 @@ Most builders treat "send a transaction" as a single step: build it, sign it, fi
 | Confirmation tracking | RPC polling every N seconds | Yellowstone gRPC stream — `confirmed` and `finalized` arrive as events |
 | Pre-submission check | None — submit and hope | `simulateTransaction()` first; sets dynamic compute budget; skips doomed submissions |
 | Submission during degraded network | Submit regardless | Smart Hold — AI estimates landing probability, pauses and polls for recovery if below 30% |
-| Jito tip account selection | Hardcoded address | Live `getTipAccounts` fetch, rotated per bundle |
+| Jito tip account selection | Hardcoded address | Live `getTipAccounts` fetch, rotated per bundle (mainnet only — devnet runs use RPC directly since Jito has no devnet) |
 | Cost feedback | None | Tip efficiency score (tip / P75-at-submission × 100) per bundle |
 | Observability | console.log | SQLite store + JSON export + AI prose report + live terminal dashboard |
 
@@ -450,7 +450,7 @@ Every observation below is traceable to a slot number in `logs/lifecycle_export.
 
 **Blockhash expiry is silent — there is no error event.** Our fault injection waited 174 slots then submitted. The only signal was the RPC rejection: `Transaction simulation failed: Blockhash not found`. KAIROS detects this proactively by tracking `expiresAtSlot` against the live stream slot.
 
-**Jito has no devnet.** `https://devnet.block-engine.jito.wtf` does not exist. KAIROS targets the mainnet block engine for all Jito interactions (Amsterdam region first for West-Africa proximity) and falls back to direct RPC for devnet transaction landing. Real mainnet bundle IDs were generated and accepted — see `logs/mainnet_jito_attempts.json`.
+**Jito has no devnet.** —only mainnet and testnet, on separate chains. `https://devnet.block-engine.jito.wtf` does not exist. Jito testnet runs against Solana testnet (a completely separate chain from devnet), making it incompatible with a devnet-based submission. KAIROS therefore handles devnet runs via direct RPC — which is honest and correct — while demonstrating real Jito mainnet interaction through dedicated evidence: real bundle IDs accepted by the Amsterdam block engine are documented in `logs/mainnet_jito_attempts.json`, and a real mainnet fee-too-low rejection (`transaction #0 could not be decoded`) is captured by `npm run inject:lowtip`.
 
 **AI tip decisions track network state autonomously.** Tip sizing moved from 2,000 lam at health 61/100, to 25,000 lam at health 34/100 (12.5x increase), back down to 2,500 lam as health recovered — no manual intervention at any point.
 
