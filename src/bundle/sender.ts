@@ -20,20 +20,18 @@ export interface SendResult {
 
 // ============================================================
 // JITO ENDPOINTS
+// NOTE: Jito has NO devnet. Only mainnet and testnet exist.
+// https://docs.jito.wtf — confirmed directly from official docs.
+// Amsterdam is listed first — lowest latency from West Africa.
 // ============================================================
 
-const JITO_ENDPOINTS = {
-  devnet:  "https://devnet.block-engine.jito.wtf",
-  mainnet: [
-    "https://amsterdam.mainnet.block-engine.jito.wtf",
-    "https://frankfurt.mainnet.block-engine.jito.wtf",
-    "https://mainnet.block-engine.jito.wtf",
-    "https://ny.mainnet.block-engine.jito.wtf",
-    "https://tokyo.mainnet.block-engine.jito.wtf",
-  ],
-};
-
-
+const JITO_MAINNET_ENDPOINTS = [
+  "https://amsterdam.mainnet.block-engine.jito.wtf",
+  "https://frankfurt.mainnet.block-engine.jito.wtf",
+  "https://mainnet.block-engine.jito.wtf",
+  "https://ny.mainnet.block-engine.jito.wtf",
+  "https://tokyo.mainnet.block-engine.jito.wtf",
+];
 
 // ============================================================
 // CHECK IF JITO ENDPOINT IS REACHABLE
@@ -66,20 +64,24 @@ export async function sendBundle(
   bundle: BuiltBundle,
   isDevnet: boolean
 ): Promise<SendResult> {
-  const endpoint = isDevnet
-    ? JITO_ENDPOINTS.devnet
-    : JITO_ENDPOINTS.mainnet[0];
-
   const submittedAt = new Date().toISOString();
 
-  // Check if Jito is reachable first
+  // Jito has no devnet endpoint — skip straight to RPC on devnet.
+  // Real Jito mainnet interaction is demonstrated via injectLowTip.ts
+  // and documented in logs/mainnet_jito_attempts.json.
+  if (isDevnet) {
+    console.log(`[SENDER] Network is devnet — Jito has no devnet endpoint. Sending via RPC.`);
+    return sendViaRpc(bundle, isDevnet, submittedAt);
+  }
+
+  // Mainnet: try Amsterdam first, then fall back down the list
+  const endpoint = JITO_MAINNET_ENDPOINTS[0];
+
   console.log(`[SENDER] Checking Jito endpoint: ${endpoint}`);
   const reachable = await isJitoReachable(endpoint);
 
   if (!reachable) {
-    console.warn(`[SENDER] ⚠️  Jito block engine unreachable at ${endpoint} — falling back to RPC`);
-
-    // Fall back to regular RPC submission
+    console.warn(`[SENDER] ⚠️  Jito mainnet unreachable at ${endpoint} — falling back to RPC`);
     return sendViaRpc(bundle, isDevnet, submittedAt);
   }
 
@@ -108,8 +110,6 @@ export async function sendBundle(
 
     if (data.error) {
       console.error(`[SENDER] Jito rejected bundle: ${data.error.message}`);
-
-      // Classify the failure type for the AI agent
       const failureType = classifyJitoError(data.error.message);
       return {
         bundleId: "jito_error",
@@ -121,7 +121,7 @@ export async function sendBundle(
     }
 
     const bundleId = data.result as string;
-    console.log(`[SENDER] ✅ Bundle accepted! ID: ${bundleId}`);
+    console.log(`[SENDER] ✅ Bundle accepted by Jito mainnet! ID: ${bundleId}`);
 
     return {
       bundleId,
@@ -144,9 +144,9 @@ export async function sendBundle(
 
 // ============================================================
 // RPC FALLBACK
-// When Jito devnet is down, send via regular Solana RPC
-// The transaction still goes on-chain — just not as a bundle
-// For devnet testing purposes this proves the tx mechanism works
+// Used when: (a) isDevnet=true (Jito has no devnet), or
+//            (b) mainnet Jito is unreachable / times out.
+// Transaction still lands on-chain — just not as a Jito bundle.
 // ============================================================
 
 async function sendViaRpc(
@@ -160,7 +160,6 @@ async function sendViaRpc(
   console.log(`[SENDER] RPC fallback — sending both transactions`);
 
   try {
-    // Send BOTH transactions — payload first, then tip
     const results: string[] = [];
 
     for (const tx of bundle.transactions) {
@@ -173,7 +172,6 @@ async function sendViaRpc(
         results.push(signature);
         console.log(`[SENDER] ✅ Tx accepted: ${signature.slice(0, 16)}...`);
       } catch (txErr: any) {
-        // Tip tx to self on devnet may fail — that's fine
         console.log(`[SENDER] Tx ${results.length + 1} note: ${txErr.message.slice(0, 60)}`);
       }
     }
@@ -188,7 +186,6 @@ async function sendViaRpc(
       };
     }
 
-    // Confirm the first (payload) transaction
     const signature = results[0];
     const confirmation = await connection.confirmTransaction({
       signature,
@@ -231,7 +228,7 @@ async function sendViaRpc(
 }
 
 // ============================================================
-// POLL FOR BUNDLE STATUS (Jito bundles only)
+// POLL FOR BUNDLE STATUS (Jito mainnet bundles only)
 // ============================================================
 
 export async function pollBundleStatus(
@@ -244,10 +241,13 @@ export async function pollBundleStatus(
   slot?: number;
   failureReason?: string;
 }> {
-  const endpoint = isDevnet
-    ? JITO_ENDPOINTS.devnet
-    : JITO_ENDPOINTS.mainnet[0];
+  // Should never be called on devnet since we skip Jito there,
+  // but guard anyway so a stray call doesn't hit a nonexistent URL.
+  if (isDevnet) {
+    return { status: "timeout" };
+  }
 
+  const endpoint = JITO_MAINNET_ENDPOINTS[0];
   console.log(`[SENDER] Polling: ${bundleId.slice(0, 16)}...`);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -278,7 +278,6 @@ export async function pollBundleStatus(
       }
 
       const bundleStatus = value[0];
-      // Log full status on first non-empty response
       if (attempt <= 3 || bundleStatus?.confirmation_status) {
         console.log(`[SENDER] Poll ${attempt}/${maxAttempts}: raw =`, JSON.stringify(bundleStatus));
       }
@@ -323,8 +322,8 @@ export async function sendAndTrack(
     return sendResult;
   }
 
-  // Poll for Jito bundle confirmation
-  console.log(`[SENDER] Waiting for bundle to land...`);
+  // Poll for Jito mainnet bundle confirmation
+  console.log(`[SENDER] Waiting for Jito bundle to land...`);
   const pollResult = await pollBundleStatus(sendResult.bundleId, isDevnet);
 
   if (pollResult.status === "landed") {
@@ -349,9 +348,8 @@ export async function sendAndTrack(
   }
 
   // Jito timeout — fall back to RPC submission
-  console.log(`[SENDER] Jito timeout — falling back to RPC submission`);
-  const rpcResult = await sendViaRpc(bundle, isDevnet, sendResult.submittedAt);
-  return rpcResult;
+  console.log(`[SENDER] Jito polling timed out — falling back to RPC`);
+  return sendViaRpc(bundle, isDevnet, sendResult.submittedAt);
 }
 
 // ============================================================
@@ -386,14 +384,14 @@ async function test() {
 
   const wallet = loadWallet();
   console.log(`Wallet: ${wallet.publicKey.toBase58()}`);
-  console.log(`Network: ${isDevnet ? "DEVNET" : "MAINNET"}\n`);
+  console.log(`Network: ${isDevnet ? "DEVNET" : "MAINNET"}`);
+  console.log(`Note: Jito has no devnet — main runs use RPC fallback on devnet.\n`);
 
-  // Check Jito availability upfront
-  const endpoint = isDevnet ? JITO_ENDPOINTS.devnet : JITO_ENDPOINTS.mainnet[0];
-  const jitoUp = await isJitoReachable(endpoint);
-  console.log(`Jito block engine: ${jitoUp ? "✅ REACHABLE" : "❌ UNREACHABLE (will use RPC fallback)"}\n`);
+  if (!isDevnet) {
+    const jitoUp = await isJitoReachable(JITO_MAINNET_ENDPOINTS[0]);
+    console.log(`Jito mainnet: ${jitoUp ? "✅ REACHABLE" : "❌ UNREACHABLE (will use RPC fallback)"}\n`);
+  }
 
-  // Build and send
   console.log("--- Building + Sending Bundle ---");
   const bundle = await buildBundle(
     connection,
