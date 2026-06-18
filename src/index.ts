@@ -196,7 +196,11 @@ async function main() {
     console.log(`│  Slot: ${currentSlot}`);
     console.log(`└─────────────────────────────────────────`);
 
-    await submitBundle(connection, wallet, stream, leaderMonitor);
+    try {
+      await submitBundle(connection, wallet, stream, leaderMonitor);
+    } catch (err: any) {
+      console.error(`[MAIN] Unexpected error in bundle ${i}: ${err.message} — continuing to next bundle`);
+    }
 
     // Wait between bundles (except after the last one)
     if (i < CONFIG.totalBundles) {
@@ -289,10 +293,16 @@ async function submitBundle(
   } catch (err: any) {
     console.warn(`[MAIN] Context fetch failed: ${err.message} — retrying once...`);
     await sleep(3000);
-    [tips, leaderAnalysis] = await Promise.all([
-      fetchTipPercentiles(),
-      leaderMonitor.analyze(50),
-    ]);
+    try {
+      [tips, leaderAnalysis] = await Promise.all([
+        fetchTipPercentiles(),
+        leaderMonitor.analyze(50),
+      ]);
+    } catch (err2: any) {
+      console.error(`[MAIN] Context fetch failed again after retry: ${err2.message}`);
+      console.error(`[MAIN] Skipping bundle ${bundleSequence} this cycle — network appears unreachable`);
+      return;
+    }
   }
 
   // Smart Hold — check network health before spending lamports

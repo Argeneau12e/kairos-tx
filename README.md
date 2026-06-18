@@ -458,6 +458,10 @@ Every observation below is traceable to a slot number in `logs/lifecycle_export.
 
 **Real Yellowstone stream drives finalization.** Every `finalized` event in the lifecycle log arrives 12,000–16,000ms after `confirmed` — matching the 32-slot × 400ms Tower BFT lockout exactly. This is stream event timing from SolInfra Frankfurt, not a `setTimeout`.
 
+**Smart Hold pauses submission under degraded conditions.** When health score dropped below threshold during testing, the AI agent estimated landing probability and the system paused submissions, polling for recovery every 5 seconds rather than wasting lamports on a doomed bundle.
+
+**A transient DNS failure exposed a missing error boundary**. An unprotected retry path crashed an early session entirely on a momentary network blip. Fixed by wrapping the retry and each bundle iteration in its own error boundary — a single network hiccup now skips one bundle instead of ending the whole run.
+
 ---
 
 ## Evidence and Verification
