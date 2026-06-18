@@ -3,26 +3,10 @@
 <img src="docs/kairos_gradient.png" width="600" alt="KAIROS" />
 
 <br/><br/>
-
-[<img src="docs/dashboard_demo.gif" width="760" alt="KAIROS live terminal dashboard" />](https://asciinema.org/a/hS20bF07FLOq2bUF)
-
-*Live terminal dashboard — health sparkline · Jito leader schedule · blockhash countdown · AI reasoning · bundle pipeline with tip efficiency*
-
-<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/play.svg" width="14" height="14" align="absmiddle" /> [Open the full interactive recording on asciinema](https://asciinema.org/a/hS20bF07FLOq2bUF)
-
 </div>
 <br/>
 
 <div align="center">
-
-```
-██╗  ██╗ █████╗ ██╗██████╗  ██████╗ ███████╗
-██║ ██╔╝██╔══██╗██║██╔══██╗██╔═══██╗██╔════╝
-█████╔╝ ███████║██║██████╔╝██║   ██║███████╗
-██╔═██╗ ██╔══██║██║██╔══██╗██║   ██║╚════██║
-██║  ██╗██║  ██║██║██║  ██║╚██████╔╝███████║
-╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
-```
 
 **Right tx. Right slot. Right tip.**
 
@@ -33,6 +17,12 @@
 [![Groq](https://img.shields.io/badge/Groq-llama--3.3--70b-F55036?style=flat-square)](https://groq.com)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat-square&logo=typescript)](https://typescriptlang.org)
 [![SolInfra](https://img.shields.io/badge/SolInfra-Ace_Plan-22C55E?style=flat-square)](https://solinfra.dev)
+<br/>
+[<img src="docs/dashboard_demo.gif" width="760" alt="KAIROS live terminal dashboard" />](https://asciinema.org/a/hS20bF07FLOq2bUF)
+
+*Live terminal dashboard — health sparkline · Jito leader schedule · blockhash countdown · AI reasoning · bundle pipeline with tip efficiency*
+
+<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/play.svg" width="14" height="14" align="absmiddle" /> [Open the full interactive recording on asciinema](https://asciinema.org/a/hS20bF07FLOq2bUF)
 
 </div>
 

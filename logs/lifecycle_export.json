@@ -27,6 +27,33 @@
     }
   },
   {
+    "id": 15,
+    "bundle_id": "kairos-1-1781722204528",
+    "sequence": 1,
+    "submitted_at": "2026-06-17T18:50:04.529Z",
+    "submitted_slot": 470121964,
+    "processed_at": null,
+    "processed_slot": null,
+    "confirmed_at": "2026-06-17T18:50:08.843Z",
+    "confirmed_slot": 470121996,
+    "finalized_at": "2026-06-17T18:50:21.871Z",
+    "finalized_slot": 470122028,
+    "tip_lamports": 20000,
+    "status": "finalized",
+    "failure_type": null,
+    "ai_tip_reasoning": "The network health score is 72/100, indicating a healthy network. The p→c delta is 1500ms, which is under 2000ms, further supporting the network being healthy. The Jito leader coverage is 34.0%, which is relatively low, suggesting that a higher tip may be necessary to guarantee landing windows. Since there are no previous bundles, we cannot assess the need for an aggressive increase due to a failed bundle. Given the stable tip trend and the need to balance between guaranteeing a landing window and not exceeding the hard limit of 50,000 lamports, we aim for a moderate percentile target.",
+    "ai_failure_reasoning": null,
+    "new_tip_lamports": null,
+    "retry_count": 0,
+    "region": "devnet",
+    "run_type": "main_run",
+    "tip_efficiency_pct": 36,
+    "latency": {
+      "confirmed_to_finalized_ms": 13028,
+      "total_slots": 64
+    }
+  },
+  {
     "id": 2,
     "bundle_id": "kairos-2-1781359347612",
     "sequence": 2,
@@ -51,6 +78,33 @@
     "latency": {
       "confirmed_to_finalized_ms": 13026,
       "total_slots": 47
+    }
+  },
+  {
+    "id": 16,
+    "bundle_id": "kairos-2-1781722222596",
+    "sequence": 2,
+    "submitted_at": "2026-06-17T18:50:22.596Z",
+    "submitted_slot": 470122021,
+    "processed_at": null,
+    "processed_slot": null,
+    "confirmed_at": "2026-06-17T18:50:26.520Z",
+    "confirmed_slot": 470122042,
+    "finalized_at": "2026-06-17T18:50:39.588Z",
+    "finalized_slot": 470122074,
+    "tip_lamports": 25000,
+    "status": "finalized",
+    "failure_type": null,
+    "ai_tip_reasoning": "The network health score is 49/100, indicating a congested state. The p→c delta of 4281ms also suggests congestion. Given the low Jito leader coverage of 34.0%, it's essential to tip higher to guarantee landing in the available windows. The recent bundle outcome was successful with a tip of 20000 lamports. Considering these factors and the decision rules, we should aim for a higher tip to ensure landing. The tip trend is stable, and the last bundle landed, so we don't need to increase aggressively. We'll target a percentile between P50 and P75 to balance the need for a higher tip with the risk of exceeding the hard limit of 50000 lamports.",
+    "ai_failure_reasoning": null,
+    "new_tip_lamports": null,
+    "retry_count": 0,
+    "region": "devnet",
+    "run_type": "main_run",
+    "tip_efficiency_pct": 45,
+    "latency": {
+      "confirmed_to_finalized_ms": 13068,
+      "total_slots": 53
     }
   },
   {
@@ -81,6 +135,33 @@
     }
   },
   {
+    "id": 17,
+    "bundle_id": "kairos-3-1781722243363",
+    "sequence": 3,
+    "submitted_at": "2026-06-17T18:50:43.363Z",
+    "submitted_slot": 470122068,
+    "processed_at": null,
+    "processed_slot": null,
+    "confirmed_at": "2026-06-17T18:50:47.098Z",
+    "confirmed_slot": 470122096,
+    "finalized_at": "2026-06-17T18:51:00.148Z",
+    "finalized_slot": 470122128,
+    "tip_lamports": 25000,
+    "status": "finalized",
+    "failure_type": null,
+    "ai_tip_reasoning": "The network health score is 49/100, indicating a congested state. The p→c delta is 3897ms, which is above the healthy threshold of 2000ms, confirming congestion. Jito leader coverage is 32.0%, which is low, suggesting fewer landing windows and a need to tip higher. The recent bundle outcomes show successful landings with tips of 20000 and 25000 lamports. Given the falling tip trend and the need to guarantee landing windows, a higher tip is warranted. However, the tip must be between P25 (1314 lamports) and P95 (87937 lamports) and not exceed the hard limit of 50000 lamports.",
+    "ai_failure_reasoning": null,
+    "new_tip_lamports": null,
+    "retry_count": 0,
+    "region": "devnet",
+    "run_type": "main_run",
+    "tip_efficiency_pct": 322,
+    "latency": {
+      "confirmed_to_finalized_ms": 13050,
+      "total_slots": 60
+    }
+  },
+  {
     "id": 4,
     "bundle_id": "kairos-4-1781359379566",
     "sequence": 4,
@@ -105,6 +186,33 @@
     "latency": {
       "confirmed_to_finalized_ms": 13035,
       "total_slots": 47
+    }
+  },
+  {
+    "id": 18,
+    "bundle_id": "kairos-4-1781722261573",
+    "sequence": 4,
+    "submitted_at": "2026-06-17T18:51:01.573Z",
+    "submitted_slot": 470122124,
+    "processed_at": null,
+    "processed_slot": null,
+    "confirmed_at": "2026-06-17T18:51:06.313Z",
+    "confirmed_slot": 470122147,
+    "finalized_at": "2026-06-17T18:51:19.351Z",
+    "finalized_slot": 470122179,
+    "tip_lamports": 25000,
+    "status": "finalized",
+    "failure_type": null,
+    "ai_tip_reasoning": "The network health score is 54/100, indicating a congested state. The p→c delta is 3698ms, which is also in the congested range. Jito leader coverage is 34.0%, which is relatively low. Recent bundle outcomes show successful landings with tips of 20000 and 25000 lamports. Given the congested network and low Jito coverage, a higher tip is necessary to guarantee landing. The tip trend is stable, and the last bundle did not fail due to low tip. Considering these factors, a tip between P50 and P75 is reasonable. The P50 value is 3637 lamports, and the P75 value is 7761 lamports. To balance the need for a higher tip with the risk of overspending, a tip near the higher end of this range is chosen, while ensuring it does not exceed the P95 value of 87937 lamports or the hard limit of 50000 lamports.",
+    "ai_failure_reasoning": null,
+    "new_tip_lamports": null,
+    "retry_count": 0,
+    "region": "devnet",
+    "run_type": "main_run",
+    "tip_efficiency_pct": 322,
+    "latency": {
+      "confirmed_to_finalized_ms": 13038,
+      "total_slots": 55
     }
   },
   {
@@ -135,6 +243,33 @@
     }
   },
   {
+    "id": 19,
+    "bundle_id": "kairos-5-1781722286182",
+    "sequence": 5,
+    "submitted_at": "2026-06-17T18:51:26.182Z",
+    "submitted_slot": 470122175,
+    "processed_at": null,
+    "processed_slot": null,
+    "confirmed_at": "2026-06-17T18:51:29.185Z",
+    "confirmed_slot": 470122207,
+    "finalized_at": "2026-06-17T18:51:42.236Z",
+    "finalized_slot": 470122239,
+    "tip_lamports": 10000,
+    "status": "finalized",
+    "failure_type": null,
+    "ai_tip_reasoning": "The network is congested with a p→c delta of 4717ms, indicating a need for a higher tip to ensure bundle landing. The Jito leader coverage is low at 34.0%, which means fewer landing windows are available, requiring a higher tip to guarantee the available ones. The recent bundle outcomes have been successful with a tip of 25000 lamports, but the tip trend is falling. Given these conditions, a moderate increase in tip is warranted to maintain a high landing probability. The tip must be between P25 (1559) and P95 (30813), and considering the network congestion and low Jito coverage, targeting a higher percentile such as P75 (6447) seems reasonable. However, to ensure a high landing probability, the tip should be higher than P75.",
+    "ai_failure_reasoning": null,
+    "new_tip_lamports": null,
+    "retry_count": 0,
+    "region": "devnet",
+    "run_type": "main_run",
+    "tip_efficiency_pct": 155,
+    "latency": {
+      "confirmed_to_finalized_ms": 13051,
+      "total_slots": 64
+    }
+  },
+  {
     "id": 6,
     "bundle_id": "kairos-6-1781359411036",
     "sequence": 6,
@@ -159,6 +294,33 @@
     "latency": {
       "confirmed_to_finalized_ms": 13058,
       "total_slots": 49
+    }
+  },
+  {
+    "id": 20,
+    "bundle_id": "kairos-6-1781722304806",
+    "sequence": 6,
+    "submitted_at": "2026-06-17T18:51:44.806Z",
+    "submitted_slot": 470122234,
+    "processed_at": null,
+    "processed_slot": null,
+    "confirmed_at": "2026-06-17T18:51:49.461Z",
+    "confirmed_slot": 470122260,
+    "finalized_at": "2026-06-17T18:52:02.512Z",
+    "finalized_slot": 470122292,
+    "tip_lamports": 6447,
+    "status": "finalized",
+    "failure_type": null,
+    "ai_tip_reasoning": "The network health score is 59/100, indicating a congested state. The p→c delta is 2963ms, which is above the healthy threshold of 2000ms, confirming congestion. Jito leader coverage is 34.0%, which is low, suggesting fewer landing windows and thus requiring a higher tip to guarantee success. Recent bundle outcomes have been successful with tips of 25000 lamports and 10000 lamports. Given the stable tip trend and the need to ensure landing in a congested network with low Jito coverage, a tip higher than P50 but not exceeding P95 is warranted. The last bundle did not fail due to low tip, so aggressive increase is not necessary. Considering these factors, a tip near the P75 percentile seems appropriate to balance the need for a high landing probability without exceeding the hard limit of 50000 lamports.",
+    "ai_failure_reasoning": null,
+    "new_tip_lamports": null,
+    "retry_count": 0,
+    "region": "devnet",
+    "run_type": "main_run",
+    "tip_efficiency_pct": 100,
+    "latency": {
+      "confirmed_to_finalized_ms": 13051,
+      "total_slots": 58
     }
   },
   {
@@ -189,6 +351,33 @@
     }
   },
   {
+    "id": 21,
+    "bundle_id": "kairos-7-1781722324738",
+    "sequence": 7,
+    "submitted_at": "2026-06-17T18:52:04.738Z",
+    "submitted_slot": 470122286,
+    "processed_at": null,
+    "processed_slot": null,
+    "confirmed_at": "2026-06-17T18:52:07.437Z",
+    "confirmed_slot": 470122308,
+    "finalized_at": "2026-06-17T18:52:20.487Z",
+    "finalized_slot": 470122340,
+    "tip_lamports": 40000,
+    "status": "finalized",
+    "failure_type": null,
+    "ai_tip_reasoning": "The network is congested with a p→c delta of 4609ms, indicating a need for a higher tip to ensure bundle landing. The Jito leader coverage is low at 34.0%, which means fewer landing windows are available, necessitating a higher tip to guarantee the available windows. The recent bundle outcomes show successful landings with tips ranging from 6447 to 25000 lamports. Given the rising tip floor trend and the need to balance between guaranteeing landing and not exceeding the hard limit, a tip near the higher end of the range but below the hard limit is reasonable.",
+    "ai_failure_reasoning": null,
+    "new_tip_lamports": null,
+    "retry_count": 0,
+    "region": "devnet",
+    "run_type": "main_run",
+    "tip_efficiency_pct": 18,
+    "latency": {
+      "confirmed_to_finalized_ms": 13050,
+      "total_slots": 54
+    }
+  },
+  {
     "id": 8,
     "bundle_id": "kairos-8-1781359442725",
     "sequence": 8,
@@ -213,6 +402,33 @@
     "latency": {
       "confirmed_to_finalized_ms": 13037,
       "total_slots": 49
+    }
+  },
+  {
+    "id": 22,
+    "bundle_id": "kairos-8-1781722341759",
+    "sequence": 8,
+    "submitted_at": "2026-06-17T18:52:21.759Z",
+    "submitted_slot": 470122333,
+    "processed_at": null,
+    "processed_slot": null,
+    "confirmed_at": "2026-06-17T18:52:30.199Z",
+    "confirmed_slot": 470122368,
+    "finalized_at": "2026-06-17T18:52:43.246Z",
+    "finalized_slot": 470122400,
+    "tip_lamports": 40000,
+    "status": "finalized",
+    "failure_type": null,
+    "ai_tip_reasoning": "The network health score is 54/100, indicating a congested state. The p→c delta is 2668ms, which is also in the congested range. The Jito leader coverage is 34.0%, which is relatively low. Given these conditions, we need to tip higher to guarantee landing in the available windows. The recent bundle outcomes show that lower tips (10000 lam, 6447 lam) have landed, but we need to consider the rising tip floor trend and the need to increase the tip to ensure landing. The tip trend is stable, but we should aim for a higher percentile to account for the congested network. Considering the hard limit of 50000 lamports, we will aim for a tip that is high enough to guarantee landing but does not exceed this limit.",
+    "ai_failure_reasoning": null,
+    "new_tip_lamports": null,
+    "retry_count": 0,
+    "region": "devnet",
+    "run_type": "main_run",
+    "tip_efficiency_pct": 18,
+    "latency": {
+      "confirmed_to_finalized_ms": 13047,
+      "total_slots": 67
     }
   },
   {
@@ -243,6 +459,33 @@
     }
   },
   {
+    "id": 23,
+    "bundle_id": "kairos-9-1781722366945",
+    "sequence": 9,
+    "submitted_at": "2026-06-17T18:52:46.945Z",
+    "submitted_slot": 470122395,
+    "processed_at": null,
+    "processed_slot": null,
+    "confirmed_at": "2026-06-17T18:52:50.540Z",
+    "confirmed_slot": 470122422,
+    "finalized_at": "2026-06-17T18:53:03.585Z",
+    "finalized_slot": 470122454,
+    "tip_lamports": 40000,
+    "status": "finalized",
+    "failure_type": null,
+    "ai_tip_reasoning": "The network is congested with a p→c delta of 8400ms, indicating a high latency. The Jito leader coverage is low at 32.0%, which means there are fewer landing windows available. The recent bundle outcomes show that higher tips (40000 lamports) have been successful in landing. Given the falling tip trend and the need to guarantee landing, a higher tip is necessary. However, the tip must be between P25 (1608 lamports) and P95 (100000 lamports) and not exceed the hard limit of 50000 lamports. Considering these factors, a tip near the higher end of the range but below the hard limit is chosen.",
+    "ai_failure_reasoning": null,
+    "new_tip_lamports": null,
+    "retry_count": 0,
+    "region": "devnet",
+    "run_type": "main_run",
+    "tip_efficiency_pct": 421,
+    "latency": {
+      "confirmed_to_finalized_ms": 13045,
+      "total_slots": 59
+    }
+  },
+  {
     "id": 10,
     "bundle_id": "kairos-10-1781359474692",
     "sequence": 10,
@@ -267,6 +510,30 @@
     "latency": {}
   },
   {
+    "id": 24,
+    "bundle_id": "kairos-10-1781722385392",
+    "sequence": 10,
+    "submitted_at": "2026-06-17T18:53:05.392Z",
+    "submitted_slot": 470122450,
+    "processed_at": null,
+    "processed_slot": null,
+    "confirmed_at": "2026-06-17T18:53:09.026Z",
+    "confirmed_slot": 470122471,
+    "finalized_at": null,
+    "finalized_slot": null,
+    "tip_lamports": 9507,
+    "status": "confirmed",
+    "failure_type": null,
+    "ai_tip_reasoning": "The network health score is 49/100, indicating a congested state. The p→c delta is 3567ms, which is worsening. Jito leader coverage is 32.0%, which is low. Recent bundle outcomes have been successful with a tip of 40000 lamports. Given the congested network state and low Jito coverage, a higher tip is necessary to guarantee landing. However, the tip trend is stable, and the last bundle did not fail due to a low tip. Therefore, a moderate increase in tip is warranted, targeting the 75th percentile to balance the need for a higher tip with the risk of overspending.",
+    "ai_failure_reasoning": null,
+    "new_tip_lamports": null,
+    "retry_count": 0,
+    "region": "devnet",
+    "run_type": "main_run",
+    "tip_efficiency_pct": 100,
+    "latency": {}
+  },
+  {
     "id": 13,
     "bundle_id": "kairos-fault-lowtip-1781359967503",
     "sequence": 98,
@@ -287,6 +554,30 @@
     "retry_count": 1,
     "region": "devnet",
     "run_type": "main_run",
+    "tip_efficiency_pct": null,
+    "latency": {}
+  },
+  {
+    "id": 26,
+    "bundle_id": "kairos-fault-lowtip-1781723165031",
+    "sequence": 98,
+    "submitted_at": "2026-06-17T19:06:05.031Z",
+    "submitted_slot": 470124523,
+    "processed_at": null,
+    "processed_slot": null,
+    "confirmed_at": null,
+    "confirmed_slot": null,
+    "finalized_at": null,
+    "finalized_slot": null,
+    "tip_lamports": 100,
+    "status": "failed",
+    "failure_type": "bundle_failed",
+    "ai_tip_reasoning": "[FAULT INJECTION] Deliberately using 100 lamports tip to force fee_too_low failure. P25 is 2113 lam.",
+    "ai_failure_reasoning": "The Jito bundle failed due to a fee_too_low error, indicating that the tip used was below the competitive threshold for that auction window. Given the current tip floor values, with P25 at 2113 lamports, P50 at 5634 lamports, and P95 at 43764 lamports, the initial tip of 100 lamports was significantly lower than the competitive thresholds. This low tip likely resulted in the transaction not being prioritized by the validator, leading to the failure. The recent processed→confirmed delta of 1500ms suggests the network is processing transactions but with some delay, which could impact the competitiveness of transactions based on their tip. Since the failure occurred within 5 slots of submission and well before the 150-slot blockhash expiration, the issue is directly related to the tip amount rather than blockhash expiration or network health.",
+    "new_tip_lamports": 5634,
+    "retry_count": 1,
+    "region": "devnet",
+    "run_type": "fault_injection",
     "tip_efficiency_pct": null,
     "latency": {}
   },
@@ -338,6 +629,57 @@
     "tip_efficiency_pct": null,
     "latency": {
       "confirmed_to_finalized_ms": 3049,
+      "total_slots": 36
+    }
+  },
+  {
+    "id": 25,
+    "bundle_id": "kairos-fault-1781723137370",
+    "sequence": 99,
+    "submitted_at": "2026-06-17T19:05:37.370Z",
+    "submitted_slot": 470124266,
+    "processed_at": null,
+    "processed_slot": null,
+    "confirmed_at": null,
+    "confirmed_slot": null,
+    "finalized_at": null,
+    "finalized_slot": null,
+    "tip_lamports": 3100,
+    "status": "failed",
+    "failure_type": "blockhash_expired",
+    "ai_tip_reasoning": "Fault injection — using intentionally expired blockhash",
+    "ai_failure_reasoning": "The Jito bundle failed due to a blockhash_expired error, which occurs when the blockhash used in the transaction is no longer valid. Given that blockhashes are valid for exactly 150 slots on Solana and 181 slots have elapsed since submission, it's clear that the blockhash expired because the transaction was not processed within the 150-slot window. The recent processed→confirmed delta of 2400ms indicates that the network is experiencing some delay, but this is not the primary cause of the failure. The tip used was 3100 lamports, which is above the P25 and P50 thresholds but below the P75 and P95 thresholds, suggesting that the tip might not have been competitive enough to ensure prompt processing.",
+    "new_tip_lamports": 6659,
+    "retry_count": 1,
+    "region": "devnet",
+    "run_type": "fault_injection",
+    "tip_efficiency_pct": null,
+    "latency": {}
+  },
+  {
+    "id": 27,
+    "bundle_id": "kairos-fault-lowtip-retry-1781723172553",
+    "sequence": 99,
+    "submitted_at": "2026-06-17T19:06:12.553Z",
+    "submitted_slot": 470124546,
+    "processed_at": null,
+    "processed_slot": null,
+    "confirmed_at": "2026-06-17T19:06:17.299Z",
+    "confirmed_slot": 470124550,
+    "finalized_at": "2026-06-17T19:06:20.344Z",
+    "finalized_slot": 470124582,
+    "tip_lamports": 5634,
+    "status": "finalized",
+    "failure_type": null,
+    "ai_tip_reasoning": "AI retry after fee_too_low: increased from 100 to 5634 lam",
+    "ai_failure_reasoning": null,
+    "new_tip_lamports": null,
+    "retry_count": 1,
+    "region": "devnet",
+    "run_type": "fault_injection",
+    "tip_efficiency_pct": null,
+    "latency": {
+      "confirmed_to_finalized_ms": 3045,
       "total_slots": 36
     }
   },
